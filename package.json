@@ -1,0 +1,65 @@
+{
+  "name": "@e22m4u/js-localizer",
+  "version": "0.0.1",
+  "description": "Легковесный сервис интернационализации для JavaScript",
+  "author": "Mikhail Evstropov <e22m4u@yandex.ru>",
+  "license": "MIT",
+  "keywords": [
+    "locale",
+    "language",
+    "translation",
+    "localization",
+    "internationalization"
+  ],
+  "homepage": "https://github.com/e22m4u/js-localizer",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/e22m4u/js-localizer.git"
+  },
+  "type": "module",
+  "types": "./dist/esm/index.d.ts",
+  "module": "./dist/esm/index.js",
+  "main": "./dist/cjs/index.cjs",
+  "exports": {
+    "types": "./dist/esm/index.d.ts",
+    "import": "./dist/esm/index.js",
+    "require": "./dist/cjs/index.cjs"
+  },
+  "scripts": {
+    "build:esm": "tsc --build",
+    "build:cjs": "rimraf ./dist/cjs && node --no-warnings=ExperimentalWarning build-cjs.js",
+    "build": "rimraf dist && npm run build:esm && npm run build:cjs",
+    "postbuild": "rimraf ./dist/**/*.spec.* --glob ./dist/tsconfig.tsbuildinfo",
+    "lint": "eslint ./src",
+    "lint:fix": "eslint ./src --fix",
+    "format": "prettier --write \"./src/**/*.ts\"",
+    "test": "npm run lint && c8 --reporter=text-summary mocha --bail",
+    "test:coverage": "npm run lint && c8 --reporter=text mocha --bail",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "@e22m4u/js-format": "~0.2.0"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "~19.8.1",
+    "@commitlint/config-conventional": "~19.8.1",
+    "@eslint/js": "~9.34.0",
+    "@types/chai": "~5.2.2",
+    "@types/mocha": "~10.0.10",
+    "@types/node": "~24.3.0",
+    "c8": "~10.1.3",
+    "chai": "~6.0.1",
+    "esbuild": "~0.25.9",
+    "eslint": "~9.34.0",
+    "eslint-config-prettier": "~10.1.8",
+    "eslint-plugin-chai-expect": "~3.1.0",
+    "eslint-plugin-mocha": "~11.1.0",
+    "husky": "~9.1.7",
+    "mocha": "~11.7.1",
+    "prettier": "~3.6.2",
+    "rimraf": "~6.0.1",
+    "tsx": "~4.20.5",
+    "typescript": "~5.9.2",
+    "typescript-eslint": "~8.41.0"
+  }
+}
