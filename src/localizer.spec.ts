@@ -443,5 +443,11 @@ describe('Localizer', function () {
       localizer.setLocale('de');
       expect(localizer.o(langObject, 5)).to.equal('5 Dinge');
     });
+
+    it('should return the value from the explicitly set locale', function () {
+      const localizer = new Localizer();
+      localizer.setLocale('ru');
+      expect(localizer.o(langObject)).to.be.eq('Привет');
+    });
   });
 });
