@@ -187,7 +187,7 @@ const localizer = new Localizer({
 **Параметры**
 
 - `locales: string[]` определение списка доступных локалей;
-- `fallbackLocale = 'en'` локаль при отсутствии перевода;
+- `fallbackLocale = 'en'` альтернативная локаль;
 - `lookupUrlPathIndex = 0` индекс URL сегмента локали;
 - `lookupQueryStringKey = 'lang'` название параметра запроса;
 - `lookupLocalStorageKey = 'language'` ключ локального хранилища;
