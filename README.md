@@ -60,7 +60,7 @@ localizer.t('iHaveApples', 5);    // У меня 5 яблок.
 ```js
 import {Localizer} from '@e22m4u/js-localizer';
 
-const localizer = new Localizer({locales: ['en', 'ru']});
+const localizer = new Localizer();
 localizer.setLocale('ru');
 
 localizer.o({en: 'Hello!', ru: 'Привет!'}); // Привет!
