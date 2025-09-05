@@ -2,12 +2,10 @@ import 'mocha';
 import {expect} from 'chai';
 import {Localizer} from './localizer.js';
 import {LangObject} from './localizer.js';
-import {
-  DEFAULT_FALLBACK_LOCALE,
-  DetectionSource,
-  LocalizerState,
-} from './localizer-state.js';
+import {LocalizerState} from './localizer-state.js';
+import {DetectionSource} from './localizer-state.js';
 import {LocalizerDictionaries} from './localizer-state.js';
+import {DEFAULT_FALLBACK_LOCALE} from './localizer-state.js';
 import {DEFAULT_LOCALIZER_OPTIONS} from './localizer-state.js';
 
 const dictionaries: LocalizerDictionaries = {
