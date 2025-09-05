@@ -1,21 +1,13 @@
 import { LocalizerEntry } from './localizer-state.js';
 import { LocalizerState } from './localizer-state.js';
-import { DetectionSource } from './localizer-options.js';
-import { LocalizerOptions } from './localizer-options.js';
+import { DetectionSource } from './localizer-state.js';
+import { LocalizerOptions } from './localizer-state.js';
 import { LocalizerDictionary } from './localizer-state.js';
 import { LocalizerNumerableEntry } from './localizer-state.js';
 /**
  * Lang object.
  */
 export type LangObject = Record<string, LocalizerEntry>;
-/**
- * Default fallback locale.
- */
-export declare const DEFAULT_FALLBACK_LOCALE = "en";
-/**
- * Default detection order.
- */
-export declare const DEFAULT_DETECTION_ORDER: DetectionSource[];
 /**
  * Browser locale sources.
  */
@@ -29,9 +21,13 @@ export declare class Localizer {
      */
     readonly state: LocalizerState;
     /**
+     * Options.
+     */
+    get options(): LocalizerOptions;
+    /**
      * Конструктор класса.
      */
-    constructor(optionsOrState?: LocalizerOptions | LocalizerState);
+    constructor(optionsOrState?: Partial<LocalizerOptions> | LocalizerState);
     /**
      * Возвращает текущую локаль.
      */
@@ -42,11 +38,6 @@ export declare class Localizer {
      * @param locale
      */
     setLocale(locale: string): this;
-    /**
-     * Локаль используется при неудачном определении текущей локали,
-     * или при отсутствии справочника для текущей локали.
-     */
-    getFallbackLocale(): string;
     /**
      * Создаёт клон экземпляра с новой локалью.
      *
@@ -63,7 +54,7 @@ export declare class Localizer {
     /**
      * Определяет и устанавливает наиболее подходящую локаль.
      */
-    protected _detectLocale(): string | undefined;
+    protected _detectLocale(): string;
     /**
      * Обход источников для поиска локали.
      *

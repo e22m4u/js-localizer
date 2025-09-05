@@ -24,6 +24,8 @@ __export(index_exports, {
   BROWSER_LOCALE_SOURCES: () => BROWSER_LOCALE_SOURCES,
   DEFAULT_DETECTION_ORDER: () => DEFAULT_DETECTION_ORDER,
   DEFAULT_FALLBACK_LOCALE: () => DEFAULT_FALLBACK_LOCALE,
+  DEFAULT_LOCALIZER_OPTIONS: () => DEFAULT_LOCALIZER_OPTIONS,
+  DetectionSource: () => DetectionSource,
   Localizer: () => Localizer,
   LocalizerState: () => LocalizerState,
   numWords: () => numWords
@@ -35,25 +37,69 @@ var import_js_format = require("@e22m4u/js-format");
 
 // dist/esm/utils/num-words.js
 function numWords(value, one, few, many) {
-  value = Math.abs(value) % 100;
-  const num = value % 10;
-  if (value > 10 && value < 20)
-    return many;
-  if (num > 1 && num < 5)
+  if (few == null && many == null)
+    return one;
+  if (few == null || many == null) {
+    const pluralForm = few || many;
+    return Math.abs(value) === 1 ? one : pluralForm;
+  }
+  if (!Number.isInteger(value))
     return few;
-  if (num == 1)
+  const absValue = Math.abs(value);
+  const val100 = absValue % 100;
+  const val10 = val100 % 10;
+  if (val100 > 10 && val100 < 20)
+    return many;
+  if (val10 > 1 && val10 < 5)
+    return few;
+  if (val10 === 1)
     return one;
   return many;
 }
 __name(numWords, "numWords");
 
 // dist/esm/localizer-state.js
+var DetectionSource = {
+  URL_PATH: "urlPath",
+  QUERY: "query",
+  LOCAL_STORAGE: "localStorage",
+  HTML_TAG: "htmlTag",
+  NAVIGATOR: "navigator",
+  ENV: "env"
+};
+var DEFAULT_DETECTION_ORDER = [
+  DetectionSource.URL_PATH,
+  DetectionSource.QUERY,
+  DetectionSource.LOCAL_STORAGE,
+  DetectionSource.HTML_TAG,
+  DetectionSource.NAVIGATOR,
+  DetectionSource.ENV
+];
+var DEFAULT_FALLBACK_LOCALE = "en";
+var DEFAULT_LOCALIZER_OPTIONS = {
+  locales: [],
+  fallbackLocale: DEFAULT_FALLBACK_LOCALE,
+  lookupUrlPathIndex: 0,
+  lookupQueryStringKey: "lang",
+  lookupLocalStorageKey: "language",
+  detectionOrder: DEFAULT_DETECTION_ORDER,
+  dictionaries: {}
+};
 var _LocalizerState = class _LocalizerState {
-  options;
   dictionaries;
   currentLocale;
+  /**
+   * Localizer options.
+   */
+  options = JSON.parse(JSON.stringify(DEFAULT_LOCALIZER_OPTIONS));
+  /**
+   * Constructor.
+   *
+   * @param options
+   * @param dictionaries
+   * @param currentLocale
+   */
   constructor(options = {}, dictionaries = {}, currentLocale) {
-    this.options = options;
     this.dictionaries = dictionaries;
     this.currentLocale = currentLocale;
     if (options == null ? void 0 : options.dictionaries)
@@ -61,10 +107,20 @@ var _LocalizerState = class _LocalizerState {
         ...this.dictionaries,
         ...options.dictionaries
       };
+    const filteredOptions = Object.fromEntries(Object.entries(options).filter(([, value]) => value != null));
+    this.options = Object.assign(this.options, filteredOptions);
   }
+  /**
+   * Clone with locale.
+   *
+   * @param locale
+   */
   cloneWithLocale(locale) {
     return new _LocalizerState(JSON.parse(JSON.stringify(this.options)), JSON.parse(JSON.stringify(this.dictionaries)), locale);
   }
+  /**
+   * Get available locales.
+   */
   getAvailableLocales() {
     var _a;
     return Array.from(/* @__PURE__ */ new Set([
@@ -77,21 +133,12 @@ __name(_LocalizerState, "LocalizerState");
 var LocalizerState = _LocalizerState;
 
 // dist/esm/localizer.js
-var DEFAULT_FALLBACK_LOCALE = "en";
-var DEFAULT_DETECTION_ORDER = [
-  "urlPath",
-  "query",
-  "localStorage",
-  "htmlTag",
-  "navigator",
-  "env"
-];
 var BROWSER_LOCALE_SOURCES = [
-  "urlPath",
-  "query",
-  "localStorage",
-  "navigator",
-  "htmlTag"
+  DetectionSource.URL_PATH,
+  DetectionSource.QUERY,
+  DetectionSource.LOCAL_STORAGE,
+  DetectionSource.NAVIGATOR,
+  DetectionSource.HTML_TAG
 ];
 var _Localizer = class _Localizer {
   /**
@@ -99,24 +146,29 @@ var _Localizer = class _Localizer {
    */
   state;
   /**
+   * Options.
+   */
+  get options() {
+    return this.state.options;
+  }
+  /**
    * Конструктор класса.
    */
   constructor(optionsOrState) {
     if (optionsOrState instanceof LocalizerState) {
       this.state = optionsOrState;
-      return;
+    } else {
+      this.state = new LocalizerState(optionsOrState);
     }
-    this.state = new LocalizerState(optionsOrState != null ? optionsOrState : {});
   }
   /**
    * Возвращает текущую локаль.
    */
   getLocale() {
     var _a;
-    if (!this.state.currentLocale) {
+    if (!this.state.currentLocale)
       this._detectLocale();
-    }
-    return (_a = this.state.currentLocale) != null ? _a : this.getFallbackLocale();
+    return (_a = this.state.currentLocale) != null ? _a : this.options.fallbackLocale;
   }
   /**
    * Устанавливает текущую локаль.
@@ -126,13 +178,6 @@ var _Localizer = class _Localizer {
   setLocale(locale) {
     this.state.currentLocale = locale;
     return this;
-  }
-  /**
-   * Локаль используется при неудачном определении текущей локали,
-   * или при отсутствии справочника для текущей локали.
-   */
-  getFallbackLocale() {
-    return this.state.options.fallbackLocale || DEFAULT_FALLBACK_LOCALE;
   }
   /**
    * Создаёт клон экземпляра с новой локалью.
@@ -159,7 +204,7 @@ var _Localizer = class _Localizer {
     const availableLocales = this.state.getAvailableLocales();
     const detected = this._lookupLocale(availableLocales);
     let finalLocale = detected;
-    const fallback = this.getFallbackLocale();
+    const fallback = this.options.fallbackLocale;
     if (!finalLocale) {
       if (fallback && availableLocales.includes(fallback)) {
         finalLocale = fallback;
@@ -178,8 +223,7 @@ var _Localizer = class _Localizer {
    * @param availableLocales
    */
   _lookupLocale(availableLocales) {
-    var _a;
-    const order = (_a = this.state.options.detectionOrder) != null ? _a : DEFAULT_DETECTION_ORDER;
+    const order = this.options.detectionOrder;
     for (const source of order) {
       const candidate = this._detectFromSource(source);
       if (candidate) {
@@ -203,29 +247,29 @@ var _Localizer = class _Localizer {
       }
     }
     switch (source) {
-      case "urlPath": {
-        const index = (_a = this.state.options.lookupUrlPathIndex) != null ? _a : 0;
+      case DetectionSource.URL_PATH: {
+        const index = (_a = this.options.lookupUrlPathIndex) != null ? _a : 0;
         const segments = window.location.pathname.replace(/^\/|\/$/g, "").split("/");
         if (segments.length > index && segments[index])
           return segments[index];
         return;
       }
-      case "query": {
-        const key = (_b = this.state.options.lookupQueryStringKey) != null ? _b : "lang";
+      case DetectionSource.QUERY: {
+        const key = (_b = this.options.lookupQueryStringKey) != null ? _b : "lang";
         const params = new URLSearchParams(window.location.search);
         return (_c = params.get(key)) != null ? _c : void 0;
       }
-      case "localStorage": {
-        const key = (_d = this.state.options.lookupLocalStorageKey) != null ? _d : "language";
+      case DetectionSource.LOCAL_STORAGE: {
+        const key = (_d = this.options.lookupLocalStorageKey) != null ? _d : "language";
         return (_e = window.localStorage.getItem(key)) != null ? _e : void 0;
       }
-      case "navigator": {
-        return (_g = (_f = navigator.languages) == null ? void 0 : _f[0]) != null ? _g : void 0;
+      case DetectionSource.HTML_TAG: {
+        return (_f = document.documentElement.getAttribute("lang")) != null ? _f : void 0;
       }
-      case "htmlTag": {
-        return (_h = document.documentElement.getAttribute("lang")) != null ? _h : void 0;
+      case DetectionSource.NAVIGATOR: {
+        return (_h = (_g = navigator.languages) == null ? void 0 : _g[0]) != null ? _h : void 0;
       }
-      case "env": {
+      case DetectionSource.ENV: {
         if (typeof process === "undefined" || !process.env || typeof process.env !== "object") {
           return;
         }
@@ -265,7 +309,7 @@ var _Localizer = class _Localizer {
     let locale = this.getLocale();
     let dict = this.state.dictionaries[locale];
     if (!dict) {
-      locale = this.getFallbackLocale();
+      locale = this.options.fallbackLocale;
       dict = this.state.dictionaries[locale];
     }
     if (!dict)
@@ -290,7 +334,7 @@ var _Localizer = class _Localizer {
    */
   _formatNumerableEntry(entry, args) {
     const one = entry.one || "";
-    const few = entry.few || "";
+    const few = entry.few || void 0;
     const many = entry.many || "";
     const numArg = args.find((v) => typeof v === "number");
     if (typeof numArg === "number") {
@@ -315,7 +359,7 @@ var _Localizer = class _Localizer {
     let locale = this.getLocale();
     let entry = obj[locale];
     if (!entry) {
-      locale = this.getFallbackLocale();
+      locale = this.options.fallbackLocale;
       entry = obj[locale];
     }
     if (entry == null) {
@@ -342,6 +386,8 @@ var Localizer = _Localizer;
   BROWSER_LOCALE_SOURCES,
   DEFAULT_DETECTION_ORDER,
   DEFAULT_FALLBACK_LOCALE,
+  DEFAULT_LOCALIZER_OPTIONS,
+  DetectionSource,
   Localizer,
   LocalizerState,
   numWords

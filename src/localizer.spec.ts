@@ -1,10 +1,14 @@
 import 'mocha';
 import {expect} from 'chai';
-import {DEFAULT_FALLBACK_LOCALE, Localizer} from './localizer.js';
+import {Localizer} from './localizer.js';
 import {LangObject} from './localizer.js';
-import {LocalizerState} from './localizer-state.js';
-import {DetectionSource} from './localizer-options.js';
+import {
+  DEFAULT_FALLBACK_LOCALE,
+  DetectionSource,
+  LocalizerState,
+} from './localizer-state.js';
 import {LocalizerDictionaries} from './localizer-state.js';
+import {DEFAULT_LOCALIZER_OPTIONS} from './localizer-state.js';
 
 const dictionaries: LocalizerDictionaries = {
   en: {
@@ -127,7 +131,7 @@ describe('Localizer', function () {
     it('should create an instance with default state', function () {
       const localizer = new Localizer();
       expect(localizer.state).to.be.instanceOf(LocalizerState);
-      expect(localizer.state.options).to.deep.equal({});
+      expect(localizer.state.options).to.deep.equal(DEFAULT_LOCALIZER_OPTIONS);
       expect(localizer.state.dictionaries).to.deep.equal({});
       expect(localizer.state.currentLocale).to.be.undefined;
     });
@@ -407,6 +411,16 @@ describe('Localizer', function () {
       expect(localizer.t('greetingWithName', 'World')).to.equal(
         'Hello, World!',
       );
+    });
+
+    it('should handle numerable entries for "one"', function () {
+      localizer.setLocale('ru');
+      expect(localizer.t('item', 1)).to.equal('1 товар');
+    });
+
+    it('should handle numerable entries for "few"', function () {
+      localizer.setLocale('ru');
+      expect(localizer.t('item', 3)).to.equal('3 товара');
     });
 
     it('should handle numerable entries for "many"', function () {

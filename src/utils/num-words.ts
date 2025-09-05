@@ -1,10 +1,19 @@
 /**
  * Num words.
  *
- * numWords(value, 'товар', 'товара', 'товаров');
- * numWords(value, 'штука', 'штуки', 'штук');
- * numWords(value, 'пара', 'пары', 'пар');
- * numWords(value, 'рубль', 'рубля', 'рублей');
+ * numWords(1, 'item', 'items')  // 1 item
+ * numWords(2, 'item', 'items')  // 2 items
+ * numWords(5, 'item', 'items')  // 5 items
+ * numWords(0, 'item', 'items')  // 0 items
+ * numWords(-1, 'item', 'items') // -1 item
+ * numWords(1.5, 'item', 'items') // 1.5 items
+ *
+ * numWords(1, 'товар', 'товара', 'товаров')  // 1 товар
+ * numWords(2, 'товар', 'товара', 'товаров')  // 2 товара
+ * numWords(5, 'товар', 'товара', 'товаров')  // 5 товаров
+ * numWords(21, 'товар', 'товара', 'товаров') // 21 товар
+ * numWords(-1, 'товар', 'товара', 'товаров') // -1 товар
+ * numWords(1.5, 'товар', 'товара', 'товаров') // 1.5 товара
  *
  * @param value
  * @param one
@@ -14,13 +23,22 @@
 export function numWords(
   value: number,
   one: string,
-  few: string,
-  many: string,
+  few?: string,
+  many?: string,
 ) {
-  value = Math.abs(value) % 100;
-  const num = value % 10;
-  if (value > 10 && value < 20) return many;
-  if (num > 1 && num < 5) return few;
-  if (num == 1) return one;
+  if (few == null && many == null) return one;
+  // английская логика (2 формы)
+  if (few == null || many == null) {
+    const pluralForm = few || many;
+    return Math.abs(value) === 1 ? one : pluralForm;
+  }
+  // русская логика (3 формы)
+  if (!Number.isInteger(value)) return few;
+  const absValue = Math.abs(value);
+  const val100 = absValue % 100;
+  const val10 = val100 % 10;
+  if (val100 > 10 && val100 < 20) return many;
+  if (val10 > 1 && val10 < 5) return few;
+  if (val10 === 1) return one;
   return many;
 }

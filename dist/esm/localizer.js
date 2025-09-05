@@ -1,30 +1,16 @@
 import { format } from '@e22m4u/js-format';
 import { numWords } from './utils/num-words.js';
 import { LocalizerState } from './localizer-state.js';
-/**
- * Default fallback locale.
- */
-export const DEFAULT_FALLBACK_LOCALE = 'en';
-/**
- * Default detection order.
- */
-export const DEFAULT_DETECTION_ORDER = [
-    'urlPath',
-    'query',
-    'localStorage',
-    'htmlTag',
-    'navigator',
-    'env',
-];
+import { DetectionSource } from './localizer-state.js';
 /**
  * Browser locale sources.
  */
 export const BROWSER_LOCALE_SOURCES = [
-    'urlPath',
-    'query',
-    'localStorage',
-    'navigator',
-    'htmlTag',
+    DetectionSource.URL_PATH,
+    DetectionSource.QUERY,
+    DetectionSource.LOCAL_STORAGE,
+    DetectionSource.NAVIGATOR,
+    DetectionSource.HTML_TAG,
 ];
 /**
  * Localizer.
@@ -35,23 +21,29 @@ export class Localizer {
      */
     state;
     /**
+     * Options.
+     */
+    get options() {
+        return this.state.options;
+    }
+    /**
      * Конструктор класса.
      */
     constructor(optionsOrState) {
         if (optionsOrState instanceof LocalizerState) {
             this.state = optionsOrState;
-            return;
         }
-        this.state = new LocalizerState(optionsOrState ?? {});
+        else {
+            this.state = new LocalizerState(optionsOrState);
+        }
     }
     /**
      * Возвращает текущую локаль.
      */
     getLocale() {
-        if (!this.state.currentLocale) {
+        if (!this.state.currentLocale)
             this._detectLocale();
-        }
-        return this.state.currentLocale ?? this.getFallbackLocale();
+        return this.state.currentLocale ?? this.options.fallbackLocale;
     }
     /**
      * Устанавливает текущую локаль.
@@ -61,13 +53,6 @@ export class Localizer {
     setLocale(locale) {
         this.state.currentLocale = locale;
         return this;
-    }
-    /**
-     * Локаль используется при неудачном определении текущей локали,
-     * или при отсутствии справочника для текущей локали.
-     */
-    getFallbackLocale() {
-        return this.state.options.fallbackLocale || DEFAULT_FALLBACK_LOCALE;
     }
     /**
      * Создаёт клон экземпляра с новой локалью.
@@ -96,7 +81,7 @@ export class Localizer {
         const detected = this._lookupLocale(availableLocales);
         // определяем финальную локаль с учетом fallback'а
         let finalLocale = detected;
-        const fallback = this.getFallbackLocale();
+        const fallback = this.options.fallbackLocale;
         if (!finalLocale) {
             if (fallback && availableLocales.includes(fallback)) {
                 finalLocale = fallback;
@@ -118,7 +103,7 @@ export class Localizer {
      * @param availableLocales
      */
     _lookupLocale(availableLocales) {
-        const order = this.state.options.detectionOrder ?? DEFAULT_DETECTION_ORDER;
+        const order = this.options.detectionOrder;
         for (const source of order) {
             const candidate = this._detectFromSource(source);
             if (candidate) {
@@ -141,8 +126,8 @@ export class Localizer {
             }
         }
         switch (source) {
-            case 'urlPath': {
-                const index = this.state.options.lookupUrlPathIndex ?? 0;
+            case DetectionSource.URL_PATH: {
+                const index = this.options.lookupUrlPathIndex ?? 0;
                 const segments = window.location.pathname
                     .replace(/^\/|\/$/g, '')
                     .split('/');
@@ -150,22 +135,22 @@ export class Localizer {
                     return segments[index];
                 return;
             }
-            case 'query': {
-                const key = this.state.options.lookupQueryStringKey ?? 'lang';
+            case DetectionSource.QUERY: {
+                const key = this.options.lookupQueryStringKey ?? 'lang';
                 const params = new URLSearchParams(window.location.search);
                 return params.get(key) ?? undefined;
             }
-            case 'localStorage': {
-                const key = this.state.options.lookupLocalStorageKey ?? 'language';
+            case DetectionSource.LOCAL_STORAGE: {
+                const key = this.options.lookupLocalStorageKey ?? 'language';
                 return window.localStorage.getItem(key) ?? undefined;
             }
-            case 'navigator': {
-                return navigator.languages?.[0] ?? undefined;
-            }
-            case 'htmlTag': {
+            case DetectionSource.HTML_TAG: {
                 return document.documentElement.getAttribute('lang') ?? undefined;
             }
-            case 'env': {
+            case DetectionSource.NAVIGATOR: {
+                return navigator.languages?.[0] ?? undefined;
+            }
+            case DetectionSource.ENV: {
                 if (typeof process === 'undefined' ||
                     !process.env ||
                     typeof process.env !== 'object') {
@@ -211,7 +196,7 @@ export class Localizer {
         let locale = this.getLocale();
         let dict = this.state.dictionaries[locale];
         if (!dict) {
-            locale = this.getFallbackLocale();
+            locale = this.options.fallbackLocale;
             dict = this.state.dictionaries[locale];
         }
         if (!dict)
@@ -236,7 +221,7 @@ export class Localizer {
      */
     _formatNumerableEntry(entry, args) {
         const one = entry.one || '';
-        const few = entry.few || '';
+        const few = entry.few || undefined;
         const many = entry.many || '';
         const numArg = args.find(v => typeof v === 'number');
         if (typeof numArg === 'number') {
@@ -260,7 +245,7 @@ export class Localizer {
         let locale = this.getLocale();
         let entry = obj[locale];
         if (!entry) {
-            locale = this.getFallbackLocale();
+            locale = this.options.fallbackLocale;
             entry = obj[locale];
         }
         if (entry == null) {

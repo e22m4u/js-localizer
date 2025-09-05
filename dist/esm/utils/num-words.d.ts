@@ -1,14 +1,23 @@
 /**
  * Num words.
  *
- * numWords(value, 'товар', 'товара', 'товаров');
- * numWords(value, 'штука', 'штуки', 'штук');
- * numWords(value, 'пара', 'пары', 'пар');
- * numWords(value, 'рубль', 'рубля', 'рублей');
+ * numWords(1, 'item', 'items')  // 1 item
+ * numWords(2, 'item', 'items')  // 2 items
+ * numWords(5, 'item', 'items')  // 5 items
+ * numWords(0, 'item', 'items')  // 0 items
+ * numWords(-1, 'item', 'items') // -1 item
+ * numWords(1.5, 'item', 'items') // 1.5 items
+ *
+ * numWords(1, 'товар', 'товара', 'товаров')  // 1 товар
+ * numWords(2, 'товар', 'товара', 'товаров')  // 2 товара
+ * numWords(5, 'товар', 'товара', 'товаров')  // 5 товаров
+ * numWords(21, 'товар', 'товара', 'товаров') // 21 товар
+ * numWords(-1, 'товар', 'товара', 'товаров') // -1 товар
+ * numWords(1.5, 'товар', 'товара', 'товаров') // 1.5 товара
  *
  * @param value
  * @param one
  * @param few
  * @param many
  */
-export declare function numWords(value: number, one: string, few: string, many: string): string;
+export declare function numWords(value: number, one: string, few?: string, many?: string): string | undefined;

@@ -1,50 +1,114 @@
 import { expect } from 'chai';
 import { numWords } from './num-words.js';
 describe('numWords', function () {
-    describe('товар/товара/товаров', function () {
-        it('should return correct form for 1', function () {
-            expect(numWords(1, 'товар', 'товара', 'товаров')).to.equal('товар');
+    describe('Russian version (3 forms)', function () {
+        const words = ['товар', 'товара', 'товаров'];
+        describe('integer values', function () {
+            it('should return correct form for 1', function () {
+                expect(numWords(1, ...words)).to.equal('товар');
+                expect(numWords(21, ...words)).to.equal('товар');
+                expect(numWords(101, ...words)).to.equal('товар');
+            });
+            it('should return correct form for numbers ending with 2-4', function () {
+                expect(numWords(2, ...words)).to.equal('товара');
+                expect(numWords(3, ...words)).to.equal('товара');
+                expect(numWords(4, ...words)).to.equal('товара');
+                expect(numWords(32, ...words)).to.equal('товара');
+            });
+            it('should return correct form for numbers ending with 5-9 and 0', function () {
+                expect(numWords(0, ...words)).to.equal('товаров');
+                expect(numWords(5, ...words)).to.equal('товаров');
+                expect(numWords(9, ...words)).to.equal('товаров');
+                expect(numWords(28, ...words)).to.equal('товаров');
+            });
+            it('should return correct form for numbers 11-19 (exception)', function () {
+                expect(numWords(11, ...words)).to.equal('товаров');
+                expect(numWords(12, ...words)).to.equal('товаров');
+                expect(numWords(14, ...words)).to.equal('товаров');
+                expect(numWords(19, ...words)).to.equal('товаров');
+                expect(numWords(111, ...words)).to.equal('товаров');
+            });
+            it('should handle negative numbers correctly', function () {
+                expect(numWords(-1, ...words)).to.equal('товар');
+                expect(numWords(-2, ...words)).to.equal('товара');
+                expect(numWords(-5, ...words)).to.equal('товаров');
+                expect(numWords(-11, ...words)).to.equal('товаров');
+            });
         });
-        it('should return correct form for numbers ending with 2-4', function () {
-            expect(numWords(2, 'товар', 'товара', 'товаров')).to.equal('товара');
-            expect(numWords(3, 'товар', 'товара', 'товаров')).to.equal('товара');
-            expect(numWords(4, 'товар', 'товара', 'товаров')).to.equal('товара');
+        describe('fractional values', function () {
+            it('should return the "few" form for any fractional number', function () {
+                const rubleWords = ['рубль', 'рубля', 'рублей'];
+                expect(numWords(0.5, ...words)).to.equal('товара');
+                expect(numWords(1.5, ...words)).to.equal('товара');
+                expect(numWords(2.78, ...words)).to.equal('товара');
+                expect(numWords(5.1, ...rubleWords)).to.equal('рубля');
+                expect(numWords(-10.2, ...rubleWords)).to.equal('рубля');
+            });
         });
-        it('should return correct form for numbers ending with 5-9 and 0', function () {
-            expect(numWords(5, 'товар', 'товара', 'товаров')).to.equal('товаров');
-            expect(numWords(6, 'товар', 'товара', 'товаров')).to.equal('товаров');
-            expect(numWords(7, 'товар', 'товара', 'товаров')).to.equal('товаров');
-            expect(numWords(8, 'товар', 'товара', 'товаров')).to.equal('товаров');
-            expect(numWords(9, 'товар', 'товара', 'товаров')).to.equal('товаров');
-            expect(numWords(0, 'товар', 'товара', 'товаров')).to.equal('товаров');
-        });
-        it('should return correct form for numbers 11-14', function () {
-            expect(numWords(11, 'товар', 'товара', 'товаров')).to.equal('товаров');
-            expect(numWords(12, 'товар', 'товара', 'товаров')).to.equal('товаров');
-            expect(numWords(13, 'товар', 'товара', 'товаров')).to.equal('товаров');
-            expect(numWords(14, 'товар', 'товара', 'товаров')).to.equal('товаров');
-        });
-        it('should handle numbers greater than 100', function () {
-            expect(numWords(101, 'товар', 'товара', 'товаров')).to.equal('товар');
-            expect(numWords(102, 'товар', 'товара', 'товаров')).to.equal('товара');
-            expect(numWords(111, 'товар', 'товара', 'товаров')).to.equal('товаров');
-        });
-        it('should handle negative numbers', function () {
-            expect(numWords(-1, 'товар', 'товара', 'товаров')).to.equal('товар');
-            expect(numWords(-2, 'товар', 'товара', 'товаров')).to.equal('товара');
-            expect(numWords(-5, 'товар', 'товара', 'товаров')).to.equal('товаров');
-        });
-    });
-    describe('different word forms', function () {
-        it('should work with рубль/рубля/рублей', function () {
-            expect(numWords(1, 'рубль', 'рубля', 'рублей')).to.equal('рубль');
-            expect(numWords(2, 'рубль', 'рубля', 'рублей')).to.equal('рубля');
-            expect(numWords(5, 'рубль', 'рубля', 'рублей')).to.equal('рублей');
-        });
-        it('should work with штука/штуки/штук', function () {
+        it('should work with different word sets', function () {
             expect(numWords(1, 'штука', 'штуки', 'штук')).to.equal('штука');
             expect(numWords(3, 'штука', 'штуки', 'штук')).to.equal('штуки');
             expect(numWords(7, 'штука', 'штуки', 'штук')).to.equal('штук');
+        });
+    });
+    describe('English version (2 forms) with the "one" and the "few" parameter', function () {
+        const words = ['item', 'items'];
+        describe('integer values', function () {
+            it('should return singular form for 1 and -1', function () {
+                expect(numWords(1, ...words)).to.equal('item');
+                expect(numWords(-1, ...words)).to.equal('item');
+            });
+            it('should return plural form for all other integers', function () {
+                expect(numWords(0, ...words)).to.equal('items');
+                expect(numWords(2, ...words)).to.equal('items');
+                expect(numWords(5, ...words)).to.equal('items');
+                expect(numWords(11, ...words)).to.equal('items');
+                expect(numWords(-2, ...words)).to.equal('items');
+                expect(numWords(-15, ...words)).to.equal('items');
+            });
+        });
+        describe('fractional values', function () {
+            it('should return plural form for all fractional numbers', function () {
+                expect(numWords(0.5, ...words)).to.equal('items');
+                expect(numWords(1.5, ...words)).to.equal('items');
+                expect(numWords(10.2, ...words)).to.equal('items');
+                expect(numWords(-2.7, ...words)).to.equal('items');
+            });
+        });
+        it('should work with different word sets', function () {
+            expect(numWords(1, 'dollar', 'dollars')).to.equal('dollar');
+            expect(numWords(0, 'dollar', 'dollars')).to.equal('dollars');
+            expect(numWords(1.5, 'dollar', 'dollars')).to.equal('dollars');
+        });
+    });
+    describe('English version (2 forms) with the "one" and the "many" parameter', function () {
+        const words = ['item', undefined, 'items'];
+        describe('integer values', function () {
+            it('should return singular form for 1 and -1', function () {
+                expect(numWords(1, ...words)).to.equal('item');
+                expect(numWords(-1, ...words)).to.equal('item');
+            });
+            it('should return plural form for all other integers', function () {
+                expect(numWords(0, ...words)).to.equal('items');
+                expect(numWords(2, ...words)).to.equal('items');
+                expect(numWords(5, ...words)).to.equal('items');
+                expect(numWords(11, ...words)).to.equal('items');
+                expect(numWords(-2, ...words)).to.equal('items');
+                expect(numWords(-15, ...words)).to.equal('items');
+            });
+        });
+        describe('fractional values', function () {
+            it('should return plural form for all fractional numbers', function () {
+                expect(numWords(0.5, ...words)).to.equal('items');
+                expect(numWords(1.5, ...words)).to.equal('items');
+                expect(numWords(10.2, ...words)).to.equal('items');
+                expect(numWords(-2.7, ...words)).to.equal('items');
+            });
+        });
+        it('should work with different word sets', function () {
+            expect(numWords(1, 'dollar', 'dollars')).to.equal('dollar');
+            expect(numWords(0, 'dollar', 'dollars')).to.equal('dollars');
+            expect(numWords(1.5, 'dollar', 'dollars')).to.equal('dollars');
         });
     });
 });
