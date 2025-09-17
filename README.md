@@ -60,7 +60,7 @@ const {Localizer} = require('@e22m4u/js-localizer');
 ```javascript
 import {Localizer} from '@e22m4u/js-localizer';
 
-// 1. Создание экземпляра и добавление словарей.
+// 1. Создание экземпляра и добавление словарей
 const localizer = new Localizer();
 
 localizer.addDictionary('ru', {
@@ -73,14 +73,14 @@ localizer.addDictionary('en', {
   helloName: 'Hello, %s!',
 });
 
-// 2. Установка текущей локали.
+// 2. Установка текущей локали
 localizer.setLocale('ru');
 
-// 3. Выполнение перевода.
+// 3. Выполнение перевода
 console.log(localizer.t('hello'));             // > Привет!
 console.log(localizer.t('helloName', 'Олег')); // > Привет, Олег!
 
-// Изменение локали.
+// Изменение локали
 localizer.setLocale('en');
 console.log(localizer.t('helloName', 'Oleg')); // > Hello, Oleg!
 ```
