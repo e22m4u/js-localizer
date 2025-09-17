@@ -140,6 +140,8 @@ localizer.t('iHaveApples', 5); // > I have 5 apples.
 
 ```javascript
 const localizer = new Localizer({defaultLocale: 'ru'});
+// Использование опции `defaultLocale` строго задает
+// текущую локаль, отключая автоматическое определение.
 
 const title = {
   en: 'Hello!',
