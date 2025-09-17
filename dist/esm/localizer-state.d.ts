@@ -18,10 +18,12 @@ export type DetectionSource = (typeof DetectionSource)[keyof typeof DetectionSou
  */
 export type LocalizerOptions = {
     locales: string[];
+    defaultLocale: string | undefined;
     fallbackLocale: string;
-    lookupUrlPathIndex: number;
-    lookupQueryStringKey: string;
-    lookupLocalStorageKey: string;
+    urlPathIndex: number;
+    queryStringKey: string;
+    localStorageKey: string;
+    requestHeaderKey: string;
     detectionOrder: DetectionSource[];
     dictionaries: LocalizerDictionaries;
 };
@@ -79,6 +81,10 @@ export declare class LocalizerState {
      * @param currentLocale
      */
     constructor(options?: Partial<LocalizerOptions>, dictionaries?: LocalizerDictionaries, currentLocale?: string | undefined);
+    /**
+     * Clone.
+     */
+    clone(): LocalizerState;
     /**
      * Clone with locale.
      *

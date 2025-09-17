@@ -1,17 +1,8 @@
 import { format } from '@e22m4u/js-format';
 import { numWords } from './utils/num-words.js';
 import { LocalizerState } from './localizer-state.js';
-import { DetectionSource } from './localizer-state.js';
-/**
- * Browser locale sources.
- */
-export const BROWSER_LOCALE_SOURCES = [
-    DetectionSource.URL_PATH,
-    DetectionSource.QUERY,
-    DetectionSource.LOCAL_STORAGE,
-    DetectionSource.NAVIGATOR,
-    DetectionSource.HTML_TAG,
-];
+import { detectLocaleFromSource } from './detectors/index.js';
+import { detectLocaleFromRequestHeader } from './detectors/index.js';
 /**
  * Localizer.
  */
@@ -38,12 +29,14 @@ export class Localizer {
         }
     }
     /**
-     * Возвращает текущую локаль.
+     * Get locale.
      */
     getLocale() {
         if (!this.state.currentLocale)
-            this._detectLocale();
-        return this.state.currentLocale ?? this.options.fallbackLocale;
+            this.state.currentLocale = this._detectSupportedLocale();
+        return (this.state.currentLocale ??
+            this.options.defaultLocale ??
+            this.options.fallbackLocale);
     }
     /**
      * Устанавливает текущую локаль.
@@ -55,12 +48,29 @@ export class Localizer {
         return this;
     }
     /**
-     * Создаёт клон экземпляра с новой локалью.
+     * Клонирование экземпляра.
+     */
+    clone() {
+        return new Localizer(this.state.clone());
+    }
+    /**
+     * Клонирование экземпляра с новой локалью.
      *
      * @param locale
      */
     cloneWithLocale(locale) {
         return new Localizer(this.state.cloneWithLocale(locale));
+    }
+    /**
+     * Клонирование экземпляра с локалью из заголовка запроса.
+     *
+     * @param req
+     */
+    cloneWithLocaleFromRequest(req) {
+        const locale = detectLocaleFromRequestHeader(this.state.getAvailableLocales(), req.headers, this.options.requestHeaderKey);
+        if (!locale)
+            return this.clone();
+        return this.cloneWithLocale(locale);
     }
     /**
      * Добавляет или заменяет справочник для указанной локали.
@@ -73,12 +83,16 @@ export class Localizer {
         return this;
     }
     /**
-     * Определяет и устанавливает наиболее подходящую локаль.
+     * Определяет наиболее подходящую локаль.
      */
-    _detectLocale() {
-        // пытаемся найти локаль с помощью детекторов
+    _detectSupportedLocale() {
         const availableLocales = this.state.getAvailableLocales();
-        const detected = this._lookupLocale(availableLocales);
+        let detected;
+        for (const source of this.options.detectionOrder) {
+            detected = detectLocaleFromSource(availableLocales, source, this.options);
+            if (detected)
+                break;
+        }
         // определяем финальную локаль с учетом fallback'а
         let finalLocale = detected;
         const fallback = this.options.fallbackLocale;
@@ -94,97 +108,7 @@ export class Localizer {
                 finalLocale = fallback;
             }
         }
-        this.state.currentLocale = finalLocale;
         return finalLocale;
-    }
-    /**
-     * Обход источников для поиска локали.
-     *
-     * @param availableLocales
-     */
-    _lookupLocale(availableLocales) {
-        const order = this.options.detectionOrder;
-        for (const source of order) {
-            const candidate = this._detectFromSource(source);
-            if (candidate) {
-                const supported = this._findSupported(candidate, availableLocales);
-                if (supported)
-                    return supported;
-            }
-        }
-        return;
-    }
-    /**
-     * Извлекает локаль из указанного источника.
-     *
-     * @param source
-     */
-    _detectFromSource(source) {
-        if (typeof window === 'undefined') {
-            if (BROWSER_LOCALE_SOURCES.includes(source)) {
-                return;
-            }
-        }
-        switch (source) {
-            case DetectionSource.URL_PATH: {
-                const index = this.options.lookupUrlPathIndex ?? 0;
-                const segments = window.location.pathname
-                    .replace(/^\/|\/$/g, '')
-                    .split('/');
-                if (segments.length > index && segments[index])
-                    return segments[index];
-                return;
-            }
-            case DetectionSource.QUERY: {
-                const key = this.options.lookupQueryStringKey ?? 'lang';
-                const params = new URLSearchParams(window.location.search);
-                return params.get(key) ?? undefined;
-            }
-            case DetectionSource.LOCAL_STORAGE: {
-                const key = this.options.lookupLocalStorageKey ?? 'language';
-                return window.localStorage.getItem(key) ?? undefined;
-            }
-            case DetectionSource.HTML_TAG: {
-                return document.documentElement.getAttribute('lang') ?? undefined;
-            }
-            case DetectionSource.NAVIGATOR: {
-                return navigator.languages?.[0] ?? undefined;
-            }
-            case DetectionSource.ENV: {
-                if (typeof process === 'undefined' ||
-                    !process.env ||
-                    typeof process.env !== 'object') {
-                    return;
-                }
-                const envLang = process.env.LANG ||
-                    process.env.LANGUAGE ||
-                    process.env.LC_MESSAGES ||
-                    process.env.LC_ALL;
-                // формат может быть 'ru_RU.UTF-8', извлекаем 'ru_RU'
-                return envLang ? envLang.split('.')[0] : undefined;
-            }
-            default:
-                return;
-        }
-    }
-    /**
-     * Ищет подходящую локаль среди доступных, включая базовый язык.
-     *
-     * @param candidate
-     * @param availableLocales
-     */
-    _findSupported(candidate, availableLocales) {
-        if (!candidate)
-            return;
-        const normalizedCandidate = candidate.toLowerCase();
-        const exactMatch = availableLocales.find(l => l.toLowerCase() === normalizedCandidate);
-        if (exactMatch)
-            return exactMatch;
-        const baseLang = normalizedCandidate.split('-')[0].split('_')[0];
-        const baseMatch = availableLocales.find(l => l.toLowerCase() === baseLang);
-        if (baseMatch)
-            return baseMatch;
-        return;
     }
     /**
      * Находит и форматирует перевод по ключу из справочника.

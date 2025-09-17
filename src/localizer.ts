@@ -1,27 +1,18 @@
+import {IncomingMessage} from 'http';
 import {format} from '@e22m4u/js-format';
 import {numWords} from './utils/num-words.js';
 import {LocalizerEntry} from './localizer-state.js';
 import {LocalizerState} from './localizer-state.js';
-import {DetectionSource} from './localizer-state.js';
 import {LocalizerOptions} from './localizer-state.js';
 import {LocalizerDictionary} from './localizer-state.js';
+import {detectLocaleFromSource} from './detectors/index.js';
 import {LocalizerNumerableEntry} from './localizer-state.js';
+import {detectLocaleFromRequestHeader} from './detectors/index.js';
 
 /**
  * Lang object.
  */
 export type LangObject = Record<string, LocalizerEntry>;
-
-/**
- * Browser locale sources.
- */
-export const BROWSER_LOCALE_SOURCES: DetectionSource[] = [
-  DetectionSource.URL_PATH,
-  DetectionSource.QUERY,
-  DetectionSource.LOCAL_STORAGE,
-  DetectionSource.NAVIGATOR,
-  DetectionSource.HTML_TAG,
-];
 
 /**
  * Localizer.
@@ -51,11 +42,16 @@ export class Localizer {
   }
 
   /**
-   * Возвращает текущую локаль.
+   * Get locale.
    */
   getLocale(): string {
-    if (!this.state.currentLocale) this._detectLocale();
-    return this.state.currentLocale ?? this.options.fallbackLocale;
+    if (!this.state.currentLocale)
+      this.state.currentLocale = this._detectSupportedLocale();
+    return (
+      this.state.currentLocale ??
+      this.options.defaultLocale ??
+      this.options.fallbackLocale
+    );
   }
 
   /**
@@ -63,18 +59,40 @@ export class Localizer {
    *
    * @param locale
    */
-  setLocale(locale: string) {
+  setLocale(locale: string): this {
     this.state.currentLocale = locale;
     return this;
   }
 
   /**
-   * Создаёт клон экземпляра с новой локалью.
+   * Клонирование экземпляра.
+   */
+  clone() {
+    return new Localizer(this.state.clone());
+  }
+
+  /**
+   * Клонирование экземпляра с новой локалью.
    *
    * @param locale
    */
   cloneWithLocale(locale: string) {
     return new Localizer(this.state.cloneWithLocale(locale));
+  }
+
+  /**
+   * Клонирование экземпляра с локалью из заголовка запроса.
+   *
+   * @param req
+   */
+  cloneWithLocaleFromRequest(req: IncomingMessage) {
+    const locale = detectLocaleFromRequestHeader(
+      this.state.getAvailableLocales(),
+      req.headers,
+      this.options.requestHeaderKey,
+    );
+    if (!locale) return this.clone();
+    return this.cloneWithLocale(locale);
   }
 
   /**
@@ -89,12 +107,15 @@ export class Localizer {
   }
 
   /**
-   * Определяет и устанавливает наиболее подходящую локаль.
+   * Определяет наиболее подходящую локаль.
    */
-  protected _detectLocale(): string {
-    // пытаемся найти локаль с помощью детекторов
+  protected _detectSupportedLocale(): string {
     const availableLocales = this.state.getAvailableLocales();
-    const detected = this._lookupLocale(availableLocales);
+    let detected: string | undefined;
+    for (const source of this.options.detectionOrder) {
+      detected = detectLocaleFromSource(availableLocales, source, this.options);
+      if (detected) break;
+    }
     // определяем финальную локаль с учетом fallback'а
     let finalLocale: string | undefined = detected;
     const fallback = this.options.fallbackLocale;
@@ -108,103 +129,7 @@ export class Localizer {
         finalLocale = fallback;
       }
     }
-    this.state.currentLocale = finalLocale;
     return finalLocale;
-  }
-
-  /**
-   * Обход источников для поиска локали.
-   *
-   * @param availableLocales
-   */
-  protected _lookupLocale(availableLocales: string[]): string | undefined {
-    const order = this.options.detectionOrder;
-    for (const source of order) {
-      const candidate = this._detectFromSource(source);
-      if (candidate) {
-        const supported = this._findSupported(candidate, availableLocales);
-        if (supported) return supported;
-      }
-    }
-    return;
-  }
-
-  /**
-   * Извлекает локаль из указанного источника.
-   *
-   * @param source
-   */
-  protected _detectFromSource(source: DetectionSource): string | undefined {
-    if (typeof window === 'undefined') {
-      if (BROWSER_LOCALE_SOURCES.includes(source)) {
-        return;
-      }
-    }
-    switch (source) {
-      case DetectionSource.URL_PATH: {
-        const index = this.options.lookupUrlPathIndex ?? 0;
-        const segments = window.location.pathname
-          .replace(/^\/|\/$/g, '')
-          .split('/');
-        if (segments.length > index && segments[index]) return segments[index];
-        return;
-      }
-      case DetectionSource.QUERY: {
-        const key = this.options.lookupQueryStringKey ?? 'lang';
-        const params = new URLSearchParams(window.location.search);
-        return params.get(key) ?? undefined;
-      }
-      case DetectionSource.LOCAL_STORAGE: {
-        const key = this.options.lookupLocalStorageKey ?? 'language';
-        return window.localStorage.getItem(key) ?? undefined;
-      }
-      case DetectionSource.HTML_TAG: {
-        return document.documentElement.getAttribute('lang') ?? undefined;
-      }
-      case DetectionSource.NAVIGATOR: {
-        return navigator.languages?.[0] ?? undefined;
-      }
-      case DetectionSource.ENV: {
-        if (
-          typeof process === 'undefined' ||
-          !process.env ||
-          typeof process.env !== 'object'
-        ) {
-          return;
-        }
-        const envLang =
-          process.env.LANG ||
-          process.env.LANGUAGE ||
-          process.env.LC_MESSAGES ||
-          process.env.LC_ALL;
-        // формат может быть 'ru_RU.UTF-8', извлекаем 'ru_RU'
-        return envLang ? envLang.split('.')[0] : undefined;
-      }
-      default:
-        return;
-    }
-  }
-
-  /**
-   * Ищет подходящую локаль среди доступных, включая базовый язык.
-   *
-   * @param candidate
-   * @param availableLocales
-   */
-  protected _findSupported(
-    candidate: string,
-    availableLocales: string[],
-  ): string | undefined {
-    if (!candidate) return;
-    const normalizedCandidate = candidate.toLowerCase();
-    const exactMatch = availableLocales.find(
-      l => l.toLowerCase() === normalizedCandidate,
-    );
-    if (exactMatch) return exactMatch;
-    const baseLang = normalizedCandidate.split('-')[0].split('_')[0];
-    const baseMatch = availableLocales.find(l => l.toLowerCase() === baseLang);
-    if (baseMatch) return baseMatch;
-    return;
   }
 
   /**

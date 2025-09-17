@@ -1,3 +1,5 @@
+import {removeEmptyKeys} from './utils/index.js';
+
 /**
  * Detection source.
  */
@@ -21,10 +23,12 @@ export type DetectionSource =
  */
 export type LocalizerOptions = {
   locales: string[];
+  defaultLocale: string | undefined;
   fallbackLocale: string;
-  lookupUrlPathIndex: number;
-  lookupQueryStringKey: string;
-  lookupLocalStorageKey: string;
+  urlPathIndex: number;
+  queryStringKey: string;
+  localStorageKey: string;
+  requestHeaderKey: string;
   detectionOrder: DetectionSource[];
   dictionaries: LocalizerDictionaries;
 };
@@ -51,10 +55,12 @@ export const DEFAULT_FALLBACK_LOCALE = 'en';
  */
 export const DEFAULT_LOCALIZER_OPTIONS: LocalizerOptions = {
   locales: [],
+  defaultLocale: undefined,
   fallbackLocale: DEFAULT_FALLBACK_LOCALE,
-  lookupUrlPathIndex: 0,
-  lookupQueryStringKey: 'lang',
-  lookupLocalStorageKey: 'language',
+  urlPathIndex: 0,
+  queryStringKey: 'lang',
+  localStorageKey: 'language',
+  requestHeaderKey: 'accept-language',
   detectionOrder: DEFAULT_DETECTION_ORDER,
   dictionaries: {},
 };
@@ -110,15 +116,29 @@ export class LocalizerState {
     public dictionaries: LocalizerDictionaries = {},
     public currentLocale?: string,
   ) {
+    // установка справочников (при наличии)
     if (options?.dictionaries)
       this.dictionaries = {
         ...this.dictionaries,
         ...options.dictionaries,
       };
-    const filteredOptions = Object.fromEntries(
-      Object.entries(options).filter(([, value]) => value != null),
-    );
+    // установка опций имеющих не пустые значения
+    const filteredOptions = removeEmptyKeys(options);
     this.options = Object.assign(this.options, filteredOptions);
+    // переопределение текущей локали согласно опции "defaultLocale"
+    if (this.options.defaultLocale && !currentLocale)
+      this.currentLocale = this.options.defaultLocale;
+  }
+
+  /**
+   * Clone.
+   */
+  clone() {
+    return new LocalizerState(
+      JSON.parse(JSON.stringify(this.options)),
+      JSON.parse(JSON.stringify(this.dictionaries)),
+      this.currentLocale,
+    );
   }
 
   /**
