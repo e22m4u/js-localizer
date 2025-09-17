@@ -3,14 +3,22 @@
 Легковесный сервис локализации для JavaScript без глобальных состояний
 и блокирующих операций.
 
-## Ключевые особенности
+## Особенности
 
--   **Нулевые зависимости:** Маленький размер и высокая производительность.
--   **Иммутабельность:** Методы клонирования (`clone`, `cloneWithLocale`) позволяют безопасно использовать один базовый экземпляр для создания множества изолированных.
--   **Гибкая настройка:** Полный контроль над процессом определения локали, словарями и резервными языками.
--   **Автоматическое определение локали:** Поддерживает определение из URL, query-параметров, `localStorage`, `navigator`, HTML-тега и переменных окружения.
--   **Поддержка плюрализации:** Простая обработка множественных чисел (one, few, many).
--   **Универсальность:** Работает в браузере и на сервере (Node.js).
+- **Минимум зависимостей**  
+  Маленький размер и высокая производительность.
+- **Иммутабельность**  
+  Методы клонирования (`clone`, `cloneWithLocale`) позволяют безопасно
+  использовать один базовый экземпляр для создания множества изолированных.
+- **Гибкая настройка**  
+  Контроль над процессом определения локали, словарями и резервными языками.
+- **Автоматическое определение локали**  
+  Поддерживает определение из URL, query-параметров, `localStorage`,
+  `navigator`, HTML-тега и переменных окружения.
+- **Поддержка плюрализации**  
+  Простая обработка множественных чисел (one, few, many).
+- **Универсальность**  
+  Работает в браузере и на сервере (Node.js).
 
 ## Содержание
 
@@ -47,12 +55,12 @@ const {Localizer} = require('@e22m4u/js-localizer');
 
 ## Быстрый старт
 
-Создайте экземпляр, добавьте словари и начните переводить строки.
+Создание экземпляра, добавление словарей и выполнение перевода.
 
 ```javascript
 import {Localizer} from '@e22m4u/js-localizer';
 
-// 1. Создаем экземпляр и добавляем словари
+// создание экземпляра и добавление словарей
 const localizer = new Localizer();
 
 localizer.addDictionary('ru', {
@@ -65,14 +73,14 @@ localizer.addDictionary('en', {
   helloName: 'Hello, %s!',
 });
 
-// 2. Устанавливаем текущую локаль
+// установка текущей локали
 localizer.setLocale('ru');
 
-// 3. Получаем перевод
+// выполнение перевода
 console.log(localizer.t('hello'));             // > Привет!
 console.log(localizer.t('helloName', 'Олег')); // > Привет, Олег!
 
-// Меняем локаль
+// изменение локали
 localizer.setLocale('en');
 console.log(localizer.t('helloName', 'Oleg')); // > Hello, Oleg!
 ```
@@ -84,7 +92,7 @@ console.log(localizer.t('helloName', 'Oleg')); // > Hello, Oleg!
 
 ### Плюрализация (обработка множественных чисел)
 
-Для обработки форм множественного числа используйте объект с ключами
+Для обработки форм множественного числа используется объект с ключами
 `one`, `few`, `many`.
 
 ```javascript
@@ -163,15 +171,15 @@ enLocalizer.t('greetings'); // > Hello!
 
 ### Использование на сервере (Node.js)
 
-Используйте `cloneWithLocaleFromRequest()` для автоматического определения
-языка из заголовков HTTP-запроса (например, `Accept-Language`).
+Метод `cloneWithLocaleFromRequest()` предназначен для автоматического
+определения языка из заголовков HTTP-запроса (например, `Accept-Language`).
 
 ```javascript
 // пример для Express.js
 // const baseLocalizer = new Localizer({...});
 
 function middleware(req, res, next) {
-  // создаем изолированный экземпляр для текущего запроса
+  // создание изолированной копии для текущего запроса
   req.localizer = baseLocalizer.cloneWithLocaleFromRequest(req);
   next();
 }
@@ -211,7 +219,7 @@ app.get('/', (req, res) => {
 нулевой сегмент (`/ru/products`).
 
 ```javascript
-// Для URL: https://example.com/ru/products
+// для URL https://example.com/ru/products
 window.location.pathname = '/ru/products';
 
 const localizer = new Localizer({ dictionaries: { en, ru } });
@@ -226,7 +234,7 @@ localizer.t('greetings'); // > Привет!
 ключ `lang`.
 
 ```javascript
-// Для URL: https://example.com/products?lang=ru
+// для URL https://example.com/products?lang=ru
 window.location.search = '?lang=ru';
 
 const localizer = new Localizer({ dictionaries: { en, ru } });
@@ -241,7 +249,7 @@ localizer.t('greetings'); // > Привет!
 используется ключ `language`.
 
 ```javascript
-// Пользователь ранее выбрал язык на сайте
+// пользователь ранее выбрал язык на сайте
 window.localStorage.setItem('language', 'ru');
 
 const localizer = new Localizer({dictionaries: {en, ru}});
@@ -263,7 +271,7 @@ localizer.t('greetings'); // > Привет!
 ```
 
 ```javascript
-// На странице с <html lang="ru-RU">
+// на странице с <html lang="ru-RU">
 const localizer = new Localizer({dictionaries: {en, ru}});
 localizer.t('greetings'); // > Привет!
 ```
