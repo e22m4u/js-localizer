@@ -224,7 +224,7 @@ app.get('/', (req, res) => {
 нулевой сегмент (`/ru/products`).
 
 ```javascript
-// для URL https://example.com/ru/products
+// Для URL https://example.com/ru/products
 window.location.pathname = '/ru/products';
 
 const localizer = new Localizer({ dictionaries: { en, ru } });
@@ -239,7 +239,7 @@ localizer.t('greetings'); // > Привет!
 ключ `lang`.
 
 ```javascript
-// для URL https://example.com/products?lang=ru
+// Для URL https://example.com/products?lang=ru
 window.location.search = '?lang=ru';
 
 const localizer = new Localizer({ dictionaries: { en, ru } });
