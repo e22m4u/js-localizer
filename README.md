@@ -157,14 +157,14 @@ localizer.o(title); // > Привет!
 import en from './locales/en.json';
 import ru from './locales/ru.json';
 
-// Базовый экземпляр со всеми словарями:
+// Базовый экземпляр со всеми словарями
 const baseLocalizer = new Localizer({dictionaries: {en, ru}});
 
-// Клон для русскоговорящего пользователя:
+// Клон для русскоговорящего пользователя
 const ruLocalizer = baseLocalizer.cloneWithLocale('ru');
 ruLocalizer.t('greetings'); // > Привет!
 
-// Клон для англоговорящего пользователя:
+// Клон для англоговорящего пользователя
 const enLocalizer = baseLocalizer.cloneWithLocale('en');
 enLocalizer.t('greetings'); // > Hello!
 ```
@@ -179,13 +179,13 @@ enLocalizer.t('greetings'); // > Hello!
 // const baseLocalizer = new Localizer({...});
 
 function middleware(req, res, next) {
-  // Создание изолированной копии для текущего запроса.
+  // Создание изолированной копии для текущего запроса
   req.localizer = baseLocalizer.cloneWithLocaleFromRequest(req);
   next();
 }
 
 app.get('/', (req, res) => {
-  // req.localizer уже настроен на нужный язык.
+  // req.localizer уже настроен на нужный язык
   const greeting = req.localizer.t('greetings');
   res.send(greeting);
 });
@@ -249,7 +249,7 @@ localizer.t('greetings'); // > Привет!
 используется ключ `language`.
 
 ```javascript
-// Пользователь ранее выбрал язык на сайте.
+// Пользователь ранее выбрал язык на сайте
 window.localStorage.setItem('language', 'ru');
 
 const localizer = new Localizer({dictionaries: {en, ru}});
@@ -282,7 +282,7 @@ localizer.t('greetings'); // > Привет!
 язык пользователя, установленный в его браузере или ОС.
 
 ```javascript
-// Имитация настроек браузера.
+// Имитация настроек браузера
 // (в реальности это свойство только для чтения)
 Object.defineProperty(window, 'navigator', {
   value: {languages: ["ru-RU", "en-US"]},
@@ -312,7 +312,7 @@ localizer.t('greetings'); // > Привет!
 **Пример использования в терминале:**
 
 ```bash
-# Установка переменной окружения и запуск скрипта.
+# Установка переменной окружения и запуск скрипта
 export LANG=ru_RU.UTF-8
 node my-script.js
 ```
