@@ -157,14 +157,14 @@ localizer.o(title); // > Привет!
 import en from './locales/en.json';
 import ru from './locales/ru.json';
 
-// базовый экземпляр со всеми словарями
+// Базовый экземпляр со всеми словарями:
 const baseLocalizer = new Localizer({dictionaries: {en, ru}});
 
-// клон для русскоговорящего пользователя
+// Клон для русскоговорящего пользователя:
 const ruLocalizer = baseLocalizer.cloneWithLocale('ru');
 ruLocalizer.t('greetings'); // > Привет!
 
-// клон для англоговорящего пользователя
+// Клон для англоговорящего пользователя:
 const enLocalizer = baseLocalizer.cloneWithLocale('en');
 enLocalizer.t('greetings'); // > Hello!
 ```
@@ -179,13 +179,13 @@ enLocalizer.t('greetings'); // > Hello!
 // const baseLocalizer = new Localizer({...});
 
 function middleware(req, res, next) {
-  // создание изолированной копии для текущего запроса
+  // Создание изолированной копии для текущего запроса.
   req.localizer = baseLocalizer.cloneWithLocaleFromRequest(req);
   next();
 }
 
 app.get('/', (req, res) => {
-  // req.localizer уже настроен на нужный язык
+  // req.localizer уже настроен на нужный язык.
   const greeting = req.localizer.t('greetings');
   res.send(greeting);
 });
@@ -249,7 +249,7 @@ localizer.t('greetings'); // > Привет!
 используется ключ `language`.
 
 ```javascript
-// пользователь ранее выбрал язык на сайте
+// Пользователь ранее выбрал язык на сайте.
 window.localStorage.setItem('language', 'ru');
 
 const localizer = new Localizer({dictionaries: {en, ru}});
@@ -271,7 +271,7 @@ localizer.t('greetings'); // > Привет!
 ```
 
 ```javascript
-// на странице с <html lang="ru-RU">
+// На странице с <html lang="ru-RU">
 const localizer = new Localizer({dictionaries: {en, ru}});
 localizer.t('greetings'); // > Привет!
 ```
@@ -282,7 +282,7 @@ localizer.t('greetings'); // > Привет!
 язык пользователя, установленный в его браузере или ОС.
 
 ```javascript
-// имитация настроек браузера
+// Имитация настроек браузера.
 // (в реальности это свойство только для чтения)
 Object.defineProperty(window, 'navigator', {
   value: {languages: ["ru-RU", "en-US"]},
@@ -312,13 +312,13 @@ localizer.t('greetings'); // > Привет!
 **Пример использования в терминале:**
 
 ```bash
-# установка переменной окружения и запуск скрипта
+# Установка переменной окружения и запуск скрипта.
 export LANG=ru_RU.UTF-8
 node my-script.js
 ```
 
 ```javascript
-// содержимое my-script.js
+// Содержимое my-script.js
 import en from './locales/en.json';
 import ru from './locales/ru.json';
 import {Localizer} from '@e22m4u/js-localizer';
