@@ -80,7 +80,7 @@ localizer.setLocale('ru');
 console.log(localizer.t('hello'));             // > Привет!
 console.log(localizer.t('helloName', 'Олег')); // > Привет, Олег!
 
-// 4. Изменение локали.
+// Изменение локали.
 localizer.setLocale('en');
 console.log(localizer.t('helloName', 'Oleg')); // > Hello, Oleg!
 ```
@@ -89,6 +89,11 @@ console.log(localizer.t('helloName', 'Oleg')); // > Hello, Oleg!
 [@e22m4u/js-format](https://www.npmjs.com/package/@e22m4u/js-format).*
 
 ## Продвинутое использование
+
+- [Плюрализация (обработка множественных чисел)](#плюрализация-обработка-множественных-чисел)
+- [Перевод из объекта (метод `o`)](#перевод-из-объекта-метод-o)
+- [Иммутабельность и клонирование](#иммутабельность-и-клонирование)
+- [Использование на сервере (Node.js)](#использование-на-сервере-nodejs)
 
 ### Плюрализация (обработка множественных чисел)
 
