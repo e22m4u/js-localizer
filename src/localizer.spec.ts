@@ -1,467 +1,1214 @@
-import 'mocha';
+/* eslint-disable mocha/no-setup-in-describe */
 import {expect} from 'chai';
 import {IncomingMessage} from 'http';
-import {Localizer} from './localizer.js';
-import {LangObject} from './localizer.js';
-import {removeEmptyKeys} from './utils/index.js';
-import {LocalizerState} from './localizer-state.js';
-import {LocalizerDictionaries} from './localizer-state.js';
-import {DEFAULT_FALLBACK_LOCALE} from './localizer-state.js';
-import {DEFAULT_LOCALIZER_OPTIONS} from './localizer-state.js';
 
-const dictionaries: LocalizerDictionaries = {
+import {
+  Localizer,
+  DetectionSource,
+  LocalizerDictionaries,
+  LOCALIZER_ROOT_NAMESPACE,
+  DEFAULT_LOCALIZER_OPTIONS,
+  DEFAULT_FALLBACK_LOCALE,
+  LocalizerNumerableEntry,
+} from './localizer.js';
+
+const createMockRequest = (headers: {
+  [key: string]: string;
+}): IncomingMessage => {
+  return {
+    headers,
+  } as IncomingMessage;
+};
+
+const ROOT_DICTIONARIES: LocalizerDictionaries = {
   en: {
-    greeting: 'Hello',
-    greetingWithName: 'Hello, %s!',
+    greeting: 'Hello, %s!',
     item: {
-      one: '%s item',
-      many: '%s items',
+      one: 'You have %s item.',
+      few: 'You have %s items.',
+      many: 'You have %s items.',
     },
   },
-  ru: {
-    greeting: 'Привет',
-    greetingWithName: 'Привет, %s!',
-    item: {
-      one: '%s товар',
-      few: '%s товара',
-      many: '%s товаров',
-    },
+  de: {
+    greeting: 'Hallo, %s!',
+    farewell: 'Auf Wiedersehen!',
   },
-  'de-DE': {
-    greeting: 'Hallo',
+  'pt-BR': {
+    greeting: 'Olá, %s!',
   },
 };
 
-/**
- * A test-only subclass to expose protected methods for testing.
- */
-class TestLocalizer extends Localizer {
-  public testDetectLocale() {
-    return this._detectSupportedLocale();
+const ADMIN_DICTIONARIES: LocalizerDictionaries = {
+  en: {
+    dashboard: 'Dashboard',
+  },
+  de: {
+    dashboard: 'Instrumententafel',
+  },
+};
+
+const AVAILABLE_LOCALES = ['en', 'de', 'pt-BR'];
+
+type BrowserMocksOptions = {
+  pathname?: string;
+  search?: string;
+  langAttr?: string | null;
+  languages?: readonly string[];
+  localStorageValues?: Record<string, string>;
+};
+
+const setupBrowserMocks = ({
+  pathname = '',
+  search = '',
+  langAttr = null,
+  languages = [],
+  localStorageValues = {},
+}: BrowserMocksOptions) => {
+  const mockWindow = {
+    location: {pathname, search},
+    localStorage: {
+      getItem: (key: string) => localStorageValues[key] || null,
+    },
+    URLSearchParams: URLSearchParams,
+  };
+  const mockDocument = {
+    documentElement: {
+      getAttribute: (name: string) => (name === 'lang' ? langAttr : null),
+    },
+  };
+  const mockNavigator = {
+    languages,
+  };
+
+  Object.defineProperty(global, 'window', {
+    value: mockWindow,
+    writable: true,
+    configurable: true,
+  });
+  Object.defineProperty(global, 'document', {
+    value: mockDocument,
+    writable: true,
+    configurable: true,
+  });
+  Object.defineProperty(global, 'navigator', {
+    value: mockNavigator,
+    writable: true,
+    configurable: true,
+  });
+};
+
+class OpenLocalizer extends Localizer {
+  public publicFindSupportedLocale(
+    candidate: string,
+    availableLocales: string[],
+  ): string | undefined {
+    return this.findSupportedLocale(candidate, availableLocales);
+  }
+
+  public publicDetectLocaleFromSource(
+    availableLocales: string[],
+    source: DetectionSource,
+  ): string | undefined {
+    return this.detectLocaleFromSource(availableLocales, source);
+  }
+
+  public publicFormatNumerableEntry(
+    entry: LocalizerNumerableEntry,
+    args: unknown[],
+  ): string | undefined {
+    return this.formatNumerableEntry(entry, args);
   }
 }
 
-/**
- * Разрешить запись в свойства объекта.
- */
-type Writable<T> = {-readonly [P in keyof T]: T[P]};
-
-/**
- * Вспомогательная функция для создания IncomingMessage.
- */
-function createMockReq(headers: {
-  [key: string]: string | string[] | undefined;
-}): IncomingMessage {
-  return {headers} as IncomingMessage;
-}
-
 describe('Localizer', function () {
-  let originalEnv: NodeJS.ProcessEnv;
-  let originalWindowDescriptor: PropertyDescriptor | undefined;
-  let originalNavigatorDescriptor: PropertyDescriptor | undefined;
-  let originalDocumentDescriptor: PropertyDescriptor | undefined;
-
-  const createLocalStorageMock = (): Partial<Storage> => {
-    const store: Record<string, string> = {};
-    return {
-      getItem: (key: string) => store[key] || null,
-      setItem: (key: string, value: string) => (store[key] = String(value)),
-    };
-  };
-
-  beforeEach(function () {
-    originalEnv = {...process.env};
-    originalWindowDescriptor = Object.getOwnPropertyDescriptor(
-      global,
-      'window',
-    );
-    originalNavigatorDescriptor = Object.getOwnPropertyDescriptor(
-      global,
-      'navigator',
-    );
-    originalDocumentDescriptor = Object.getOwnPropertyDescriptor(
-      global,
-      'document',
-    );
-
-    const mockWindow: Partial<Window & typeof globalThis> = {
-      location: {pathname: '/', search: ''} as Location,
-      localStorage: createLocalStorageMock() as Storage,
-    };
-    const mockNavigator: Writable<Partial<Navigator>> = {
-      languages: [],
-    };
-    const mockDocument: Partial<Document> = {
-      documentElement: {getAttribute: () => null} as unknown as HTMLElement,
-    };
-    process.env = {};
-    Object.defineProperty(global, 'window', {
-      value: mockWindow,
-      writable: true,
-      configurable: true,
-    });
-    Object.defineProperty(global, 'navigator', {
-      value: mockNavigator,
-      writable: true,
-      configurable: true,
-    });
-    Object.defineProperty(global, 'document', {
-      value: mockDocument,
-      writable: true,
-      configurable: true,
-    });
-  });
-
-  afterEach(function () {
-    process.env = originalEnv;
-    if (originalWindowDescriptor) {
-      Object.defineProperty(global, 'window', originalWindowDescriptor);
-    }
-    if (originalNavigatorDescriptor) {
-      Object.defineProperty(global, 'navigator', originalNavigatorDescriptor);
-    }
-    if (originalDocumentDescriptor) {
-      Object.defineProperty(global, 'document', originalDocumentDescriptor);
-    }
-  });
-
   describe('constructor', function () {
-    it('should create an instance with default state', function () {
+    it('should create an instance with default options', function () {
       const localizer = new Localizer();
-      expect(localizer.state).to.be.instanceOf(LocalizerState);
-      const expectedOptions = removeEmptyKeys(DEFAULT_LOCALIZER_OPTIONS);
-      expect(localizer.state.options).to.deep.equal(expectedOptions);
-      expect(localizer.state.dictionaries).to.deep.equal({});
-      expect(localizer.state.currentLocale).to.be.undefined;
+      expect(localizer.options).to.be.eql(DEFAULT_LOCALIZER_OPTIONS);
     });
 
-    it('should create an instance with provided options', function () {
-      const options = {fallbackLocale: 'ru', dictionaries};
-      const localizer = new Localizer(options);
-      expect(localizer.state.options.fallbackLocale).to.equal('ru');
-      expect(localizer.state.dictionaries).to.deep.equal(dictionaries);
-    });
-
-    it('should create an instance from an existing state', function () {
-      const state = new LocalizerState(
-        {fallbackLocale: 'de-DE'},
-        dictionaries,
-        'ru',
-      );
-      const localizer = new Localizer(state);
-      expect(localizer.state).to.equal(state);
-      expect(localizer.getLocale()).to.equal('ru');
-    });
-  });
-
-  describe('locale setter', function () {
-    it('should correctly set the current locale', function () {
-      const localizer = new Localizer();
-      localizer.setLocale('ru');
-      expect(localizer.getLocale()).to.equal('ru');
-    });
-  });
-
-  describe('locale getter', function () {
-    it('should return the currently set locale', function () {
-      const localizer = new Localizer();
-      localizer.setLocale('ru');
-      expect(localizer.getLocale()).to.equal('ru');
-    });
-
-    it('should return the defaultLocale from options if no locale is set', function () {
-      const localizer = new Localizer({defaultLocale: 'ru', dictionaries});
-      expect(localizer.getLocale()).to.equal('ru');
-    });
-
-    it('should return the fallbackLocale from options if no locale is set', function () {
-      const localizer = new Localizer({fallbackLocale: 'ru', dictionaries});
-      expect(localizer.getLocale()).to.equal('ru');
-    });
-
-    it('should return the defaultLocale from options instead of the fallbackLocale option', function () {
+    it('should override default options with provided options', function () {
       const localizer = new Localizer({
-        defaultLocale: 'ru',
         fallbackLocale: 'fr',
-        dictionaries,
+        queryStringKey: 'langue',
       });
-      expect(localizer.getLocale()).to.equal('ru');
+      expect(localizer.options.fallbackLocale).to.be.eq('fr');
+      expect(localizer.options.queryStringKey).to.be.eq('langue');
     });
 
-    it('should return the default fallback locale "en" if no locale or option is set', function () {
+    it('should ignore empty or undefined values in provided options', function () {
+      const localizer = new Localizer({fallbackLocale: undefined});
+      expect(localizer.options.fallbackLocale).to.be.eq(
+        DEFAULT_FALLBACK_LOCALE,
+      );
+    });
+  });
+
+  describe('getNamespace', function () {
+    it('should return undefined when no namespace is set', function () {
       const localizer = new Localizer();
-      expect(localizer.getLocale()).to.equal('en');
+      expect(localizer.getNamespace()).to.be.undefined;
     });
 
-    it('should trigger detection and return the detected locale if not set', function () {
-      process.env.LANG = 'ru_RU.UTF-8';
-      const localizer = new Localizer({
-        detectionOrder: ['env'],
-        dictionaries,
+    it('should return the correct namespace when it is set', function () {
+      const localizer = new Localizer({namespace: 'admin'});
+      expect(localizer.getNamespace()).to.be.eq('admin');
+    });
+  });
+
+  describe('getLocale', function () {
+    let localizer: Localizer;
+
+    beforeEach(function () {
+      localizer = new Localizer();
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+    });
+
+    it('should return the forced locale if set', function () {
+      localizer.forceLocale('de');
+      expect(localizer.getLocale()).to.be.eq('de');
+    });
+
+    it('should return the fallback locale if no locale is detected and no dictionaries are present', function () {
+      const emptyLocalizer = new Localizer({fallbackLocale: 'fr'});
+      expect(emptyLocalizer.getLocale()).to.be.eq('fr');
+    });
+
+    it('should detect locale if not already detected or forced (mocking env)', function () {
+      process.env.LANG = 'de_DE.UTF-8';
+      const envLocalizer = new Localizer({
+        detectionOrder: [DetectionSource.ENV],
       });
-      expect(localizer.getLocale()).to.equal('ru');
+      envLocalizer.setDictionaries(ROOT_DICTIONARIES);
+      expect(envLocalizer.getLocale()).to.be.eq('de');
+      delete process.env.LANG;
+    });
+
+    it('should return the first available locale if fallback is not available', function () {
+      const customFallbackLocalizer = new Localizer({fallbackLocale: 'fr'});
+      customFallbackLocalizer.setDictionaries({
+        es: {hello: 'Hola'},
+        it: {hello: 'Ciao'},
+      });
+      // 'es' is the first key in the object
+      expect(customFallbackLocalizer.getLocale()).to.be.eq('es');
+    });
+  });
+
+  describe('forceLocale and resetForcedLocale', function () {
+    it('should allow forcing a locale and then resetting it', function () {
+      const localizer = new Localizer();
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      localizer.forceLocale('de');
+      expect(localizer.getLocale()).to.be.eq('de');
+      expect(localizer.t('greeting', 'World')).to.be.eq('Hallo, World!');
+
+      localizer.resetForcedLocale();
+      // Should fall back to default 'en' after reset
+      expect(localizer.getLocale()).to.be.eq('en');
+      expect(localizer.t('greeting', 'World')).to.be.eq('Hello, World!');
+    });
+  });
+
+  describe('clone', function () {
+    let localizer: Localizer;
+
+    beforeEach(function () {
+      localizer = new Localizer({fallbackLocale: 'de'});
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      localizer.forceLocale('de');
+    });
+
+    it('should create a new instance with the same properties', function () {
+      const clone = localizer.clone();
+      expect(clone).to.be.an.instanceOf(Localizer);
+      expect(clone).to.not.equal(localizer);
+      expect(clone.getLocale()).to.be.eq('de');
+      expect(clone.options.fallbackLocale).to.be.eq('de');
+      expect(clone.t('farewell')).to.be.eq('Auf Wiedersehen!');
+    });
+
+    it('should allow overriding options during cloning', function () {
+      const clone = localizer.clone({fallbackLocale: 'en'});
+      expect(clone.options.fallbackLocale).to.be.eq('en');
+      // The forced locale is still preserved from the original
+      expect(clone.getLocale()).to.be.eq('de');
     });
   });
 
   describe('cloneWithLocale', function () {
-    it('should create a new instance with a different locale', function () {
-      const original = new Localizer({dictionaries, fallbackLocale: 'en'});
-      original.setLocale('en');
-      const cloned = original.cloneWithLocale('ru');
-      expect(cloned).to.not.equal(original);
-      expect(cloned.getLocale()).to.equal('ru');
-    });
+    it('should create a clone with a specific locale forced', function () {
+      const localizer = new Localizer();
+      localizer.setDictionaries(ROOT_DICTIONARIES);
 
-    it('should preserve options and dictionaries from the original instance', function () {
-      const original = new Localizer({dictionaries, fallbackLocale: 'en'});
-      const cloned = original.cloneWithLocale('ru');
-      expect(cloned.state.options).to.deep.equal(original.state.options);
-      expect(cloned.state.dictionaries).to.deep.equal(
-        original.state.dictionaries,
-      );
-    });
+      const deLocalizer = localizer.cloneWithLocale('de');
+      expect(deLocalizer.getLocale()).to.be.eq('de');
+      expect(deLocalizer.t('greeting', 'Welt')).to.be.eq('Hallo, Welt!');
 
-    it('should not modify the original instance', function () {
-      const original = new Localizer({dictionaries});
-      original.setLocale('en');
-      original.cloneWithLocale('ru');
-      expect(original.getLocale()).to.equal('en');
+      const enLocalizer = localizer.cloneWithLocale('en');
+      expect(enLocalizer.getLocale()).to.be.eq('en');
+      expect(enLocalizer.t('greeting', 'World')).to.be.eq('Hello, World!');
     });
   });
 
-  describe('cloneWithLocaleFromRequest', function () {
-    let localizer: Localizer;
-
-    beforeEach(function () {
-      localizer = new Localizer({
-        locales: ['en-US', 'fr', 'ru'],
-        requestHeaderKey: 'Accept-Language',
+  describe('cloneWithRequest', function () {
+    it('should create a clone and detect locale from the request header', function () {
+      const localizer = new Localizer({
+        detectionOrder: [DetectionSource.REQUEST_HEADER],
       });
-      localizer.setLocale('en');
-    });
-
-    it('should set the locale when a single string header has an exact match', function () {
-      const req = createMockReq({'accept-language': 'fr'});
-      const res = localizer.cloneWithLocaleFromRequest(req);
-      expect(res.getLocale()).to.be.eq('fr');
-      expect(res).to.be.not.eq(req); // проверка, что объект новый
-    });
-
-    it('should set the locale when a single string header has a base language match', function () {
-      const req = createMockReq({'accept-language': 'ru-RU,en;q=0.9'});
-      const res = localizer.cloneWithLocaleFromRequest(req);
-      expect(res.getLocale()).to.be.eq('ru');
-    });
-
-    it('should find the first supported locale in an array of candidates', function () {
-      // 'de' не поддерживается, 'fr' — первый поддерживаемый в списке кандидатов
-      const req = createMockReq({'accept-language': ['de-DE', 'fr', 'en-US']});
-      const res = localizer.cloneWithLocaleFromRequest(req);
-      expect(res.getLocale()).to.be.eq('fr');
-    });
-
-    it('should correctly use the case-insensitive header key from options', function () {
-      // в опциях 'Accept-Language', а в запросе 'accept-language'
-      const req = createMockReq({'accept-language': 'en-US'});
-      const res = localizer.cloneWithLocaleFromRequest(req);
-      expect(res.getLocale()).to.be.eq('en-US');
-    });
-
-    it('should skip invalid entries in an array and find a valid one', function () {
-      const req = createMockReq({
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        'accept-language': ['de', null, '', 'ru-RU'] as any,
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      const req = createMockRequest({
+        'accept-language': 'de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7',
       });
-      const res = localizer.cloneWithLocaleFromRequest(req);
-      expect(res.getLocale()).to.be.eq('ru');
+      const reqLocalizer = localizer.cloneWithRequest(req);
+      expect(reqLocalizer.getLocale()).to.be.eq('de');
+      expect(reqLocalizer.t('farewell')).to.be.eq('Auf Wiedersehen!');
     });
 
-    it('should return a clone with unchanged locale if the header is missing', function () {
-      localizer.setLocale('fr'); // устанавливаем начальное состояние
-      const req = createMockReq({}); // заголовка нет
-      const res = localizer.cloneWithLocaleFromRequest(req);
-      expect(res.getLocale()).to.be.eq('fr');
-      expect(res).to.be.not.eq(req); // проверка, что объект новый
+    it('should reset a forced locale when cloning with a request', function () {
+      const localizer = new Localizer({
+        detectionOrder: [DetectionSource.REQUEST_HEADER],
+      });
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      localizer.forceLocale('en');
+      const req = createMockRequest({'accept-language': 'de'});
+      const reqLocalizer = localizer.cloneWithRequest(req);
+      expect(reqLocalizer.getLocale()).to.be.eq('de');
+    });
+  });
+
+  describe('cloneWithNamespace', function () {
+    it('should create a clone with a new namespace', function () {
+      const localizer = new Localizer();
+      localizer.setDictionaries('admin', ADMIN_DICTIONARIES);
+
+      const adminLocalizer = localizer.cloneWithNamespace('admin');
+      expect(adminLocalizer.getNamespace()).to.be.eq('admin');
+      expect(adminLocalizer.t('dashboard')).to.be.eq('Dashboard');
+    });
+  });
+
+  describe('getAvailableLocales', function () {
+    it('should return locales from the root namespace', function () {
+      const localizer = new Localizer();
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      expect(localizer.getAvailableLocales()).to.have.members([
+        'en',
+        'de',
+        'pt-BR',
+      ]);
     });
 
-    it('should return a clone with unchanged locale if no supported locales are found', function () {
-      localizer.setLocale('en-US');
-      const req = createMockReq({'accept-language': ['es-ES', 'ja-JP']});
-      const res = localizer.cloneWithLocaleFromRequest(req);
-      expect(res.getLocale()).to.be.eq('en-US');
+    it('should return locales from a specific namespace, merged with root', function () {
+      const localizer = new Localizer({namespace: 'admin'});
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      localizer.setDictionaries('admin', {de: {}, fr: {}});
+      expect(localizer.getAvailableLocales()).to.have.members([
+        'en',
+        'de',
+        'pt-BR',
+        'fr',
+      ]);
+    });
+  });
+
+  describe('getDictionaries', function () {
+    it('should get dictionaries from the root namespace by default', function () {
+      const localizer = new Localizer();
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      expect(localizer.getDictionaries()).to.be.eql(ROOT_DICTIONARIES);
     });
 
-    it('should return a clone with unchanged locale for an empty array header', function () {
-      localizer.setLocale('ru');
-      const req = createMockReq({'accept-language': []});
-      const res = localizer.cloneWithLocaleFromRequest(req);
-      expect(res.getLocale()).to.be.eq('ru');
+    it('should get dictionaries from a specified namespace', function () {
+      const localizer = new Localizer();
+      localizer.setDictionaries('admin', ADMIN_DICTIONARIES);
+      expect(localizer.getDictionaries('admin')).to.be.eql(ADMIN_DICTIONARIES);
+    });
+
+    it('should return an empty object for a namespace with no dictionaries', function () {
+      const localizer = new Localizer();
+      expect(localizer.getDictionaries('nonexistent')).to.be.eql({});
+    });
+
+    it('should get root dictionaries when the root namespace is explicitly requested', function () {
+      const localizer = new Localizer();
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      expect(localizer.getDictionaries(LOCALIZER_ROOT_NAMESPACE)).to.be.eql(
+        ROOT_DICTIONARIES,
+      );
+    });
+  });
+
+  describe('getDictionary', function () {
+    it('should get a dictionary for a locale from the root namespace', function () {
+      const localizer = new Localizer();
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      expect(localizer.getDictionary('de')).to.be.eql(ROOT_DICTIONARIES.de);
+    });
+
+    it('should get a dictionary for a locale from a specific namespace', function () {
+      const localizer = new Localizer();
+      localizer.setDictionaries('admin', ADMIN_DICTIONARIES);
+      expect(localizer.getDictionary('admin', 'de')).to.be.eql(
+        ADMIN_DICTIONARIES.de,
+      );
+    });
+
+    it('should return an empty object if the locale does not exist in the namespace', function () {
+      const localizer = new Localizer();
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      expect(localizer.getDictionary('fr')).to.be.eql({});
+    });
+
+    it('should return an empty object if the namespace does not exist', function () {
+      const localizer = new Localizer();
+      expect(localizer.getDictionary('nonexistent', 'en')).to.be.eql({});
+    });
+  });
+
+  describe('setDictionaries', function () {
+    it('should set dictionaries for the root namespace', function () {
+      const localizer = new Localizer();
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      expect(localizer.getDictionaries()).to.be.eql(ROOT_DICTIONARIES);
+    });
+
+    it('should set dictionaries for a specific namespace', function () {
+      const localizer = new Localizer();
+      localizer.setDictionaries('admin', ADMIN_DICTIONARIES);
+      expect(localizer.getDictionaries('admin')).to.be.eql(ADMIN_DICTIONARIES);
+      expect(localizer.getDictionaries()).to.be.eql({});
+    });
+
+    it('should overwrite any existing dictionaries for the given namespace', function () {
+      const localizer = new Localizer();
+      localizer.setDictionaries({en: {greeting: 'Hi'}});
+      const newDictionaries = {
+        en: {greeting: 'Hello'},
+        de: {greeting: 'Hallo'},
+      };
+      localizer.setDictionaries(newDictionaries);
+      expect(localizer.getDictionaries()).to.be.eql(newDictionaries);
+    });
+
+    it('should return the localizer instance for chaining', function () {
+      const localizer = new Localizer();
+      const instance = localizer.setDictionaries(ROOT_DICTIONARIES);
+      expect(instance).to.be.eq(localizer);
+    });
+  });
+
+  describe('setDictionary', function () {
+    it('should set a dictionary for a specific locale in the root namespace', function () {
+      const localizer = new Localizer();
+      const enDict = {greeting: 'Hello'};
+      localizer.setDictionary('en', enDict);
+      expect(localizer.getDictionary('en')).to.be.eql(enDict);
+    });
+
+    it('should set a dictionary for a specific locale in a given namespace', function () {
+      const localizer = new Localizer();
+      const deDict = {dashboard: 'Instrumententafel'};
+      localizer.setDictionary('admin', 'de', deDict);
+      expect(localizer.getDictionary('admin', 'de')).to.be.eql(deDict);
+      expect(localizer.getDictionary('de')).to.be.eql({});
+    });
+
+    it('should overwrite an existing dictionary for the same locale', function () {
+      const localizer = new Localizer();
+      const initialDict = {greeting: 'Hi'};
+      const newDict = {greeting: 'Hello, World!'};
+      localizer.setDictionary('en', initialDict);
+      localizer.setDictionary('en', newDict);
+      expect(localizer.getDictionary('en')).to.be.eql(newDict);
+    });
+
+    it('should return the localizer instance for chaining', function () {
+      const localizer = new Localizer();
+      const instance = localizer.setDictionary('en', {greeting: 'Hello'});
+      expect(instance).to.be.eq(localizer);
+    });
+  });
+
+  describe('addDictionaries', function () {
+    it('should add new locales to the root namespace without overwriting existing ones', function () {
+      const localizer = new Localizer();
+      const initialDict = {en: {greeting: 'Hello'}};
+      const additionalDict = {de: {greeting: 'Hallo'}};
+      localizer.setDictionaries(initialDict);
+      localizer.addDictionaries(additionalDict);
+      expect(localizer.getDictionaries()).to.be.eql({
+        ...initialDict,
+        ...additionalDict,
+      });
+    });
+
+    it('should merge dictionaries for existing locales in the root namespace', function () {
+      const localizer = new Localizer();
+      const initialEnDict = {greeting: 'Hello'};
+      const additionalEnDict = {farewell: 'Goodbye'};
+      localizer.setDictionaries({en: initialEnDict});
+      localizer.addDictionaries({en: additionalEnDict});
+      expect(localizer.getDictionary('en')).to.be.eql({
+        ...initialEnDict,
+        ...additionalEnDict,
+      });
+    });
+
+    it('should merge dictionaries for a specific namespace', function () {
+      const localizer = new Localizer();
+      localizer.setDictionaries('admin', {en: {a: '1'}});
+      localizer.addDictionaries('admin', {en: {b: '2'}, de: {c: '3'}});
+      expect(localizer.getDictionary('admin', 'en')).to.be.eql({
+        a: '1',
+        b: '2',
+      });
+      expect(localizer.getDictionary('admin', 'de')).to.be.eql({c: '3'});
+    });
+
+    it('should return the localizer instance for chaining', function () {
+      const localizer = new Localizer();
+      const instance = localizer.addDictionaries({en: {greeting: 'Hello'}});
+      expect(instance).to.be.eq(localizer);
     });
   });
 
   describe('addDictionary', function () {
-    it('should add a new language dictionary', function () {
+    it('should add a dictionary for a new locale in the root namespace', function () {
       const localizer = new Localizer();
-      localizer.addDictionary('fr', {greeting: 'Bonjour'});
-      expect(localizer.state.dictionaries.fr).to.deep.equal({
-        greeting: 'Bonjour',
+      const enDict = {greeting: 'Hello'};
+      localizer.addDictionary('en', enDict);
+      expect(localizer.getDictionary('en')).to.be.eql(enDict);
+    });
+
+    it('should merge with an existing dictionary for a locale in the root namespace', function () {
+      const localizer = new Localizer();
+      const initialEnDict = {greeting: 'Hello'};
+      const additionalEnDict = {farewell: 'Goodbye'};
+      localizer.setDictionary('en', initialEnDict);
+      localizer.addDictionary('en', additionalEnDict);
+      expect(localizer.getDictionary('en')).to.be.eql({
+        ...initialEnDict,
+        ...additionalEnDict,
       });
     });
 
-    it('should overwrite an existing language dictionary', function () {
-      const localizer = new Localizer({dictionaries: {en: {greeting: 'Hi'}}});
-      localizer.addDictionary('en', {greeting: 'Hello'});
-      expect(localizer.state.dictionaries.en.greeting).to.equal('Hello');
+    it('should merge with an existing dictionary for a locale in a specific namespace', function () {
+      const localizer = new Localizer();
+      const initialEnDict = {dashboard: 'Dashboard'};
+      const additionalEnDict = {settings: 'Settings'};
+      localizer.setDictionary('admin', 'en', initialEnDict);
+      localizer.addDictionary('admin', 'en', additionalEnDict);
+      expect(localizer.getDictionary('admin', 'en')).to.be.eql({
+        ...initialEnDict,
+        ...additionalEnDict,
+      });
     });
 
-    it('should be chainable', function () {
+    it('should return the localizer instance for chaining', function () {
       const localizer = new Localizer();
-      const instance = localizer.addDictionary('fr', {});
-      expect(instance).to.equal(localizer);
+      const instance = localizer.addDictionary('en', {greeting: 'Hello'});
+      expect(instance).to.be.eq(localizer);
     });
   });
 
-  describe('_detectSupportedLocale', function () {
-    it('should detect locale from environment variable', function () {
-      process.env.LANG = 'ru-RU';
-      const localizer = new TestLocalizer({
-        dictionaries,
-        detectionOrder: ['env'],
+  describe('detectLocale', function () {
+    afterEach(function () {
+      delete process.env.LANG;
+    });
+
+    it('should detect a locale based on the detection order and return it', function () {
+      process.env.LANG = 'de-DE';
+      const localizer = new Localizer({
+        detectionOrder: [DetectionSource.ENV],
       });
-      const detected = localizer.testDetectLocale();
-      expect(detected).to.equal('ru');
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      const detected = localizer.detectLocale();
+      expect(detected).to.be.eq('de');
     });
 
-    it('should detect a locale listed in options.locales even without a dictionary', function () {
-      process.env.LANG = 'fr-FR';
-      const localizer = new TestLocalizer({
-        locales: ['fr', 'en'],
-        detectionOrder: ['env'],
+    it('should update the internal detectedLocale property, which getLocale uses', function () {
+      process.env.LANG = 'de-DE';
+      const localizer = new Localizer({
+        detectionOrder: [DetectionSource.ENV],
       });
-      const detected = localizer.testDetectLocale();
-      expect(detected).to.equal('fr');
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      localizer.detectLocale();
+      expect(localizer.getLocale()).to.be.eq('de');
     });
 
-    it('should use fallbackLocale if detection fails', function () {
-      const localizer = new TestLocalizer({fallbackLocale: 'de-DE'});
-      const detected = localizer.testDetectLocale();
-      expect(detected).to.equal('de-DE');
-    });
-
-    it('should use fallbackLocale if no dictionary for explicity set locale', function () {
-      const localizer = new TestLocalizer({fallbackLocale: 'de-DE'});
-      localizer.setLocale('cn');
-      const detected = localizer.testDetectLocale();
-      expect(detected).to.equal('de-DE');
-    });
-
-    it('should use first locale from options instead of fallbackLocale if detection fails', function () {
-      const localizer = new TestLocalizer({
-        locales: ['fr', 'cn'],
-        fallbackLocale: 'de-DE',
+    it('should return the fallbackLocale if no locale is detected and it is available', function () {
+      const localizer = new Localizer({
+        fallbackLocale: 'de',
+        detectionOrder: [DetectionSource.URL_PATH, DetectionSource.QUERY],
       });
-      const detected = localizer.testDetectLocale();
-      expect(detected).to.equal('fr');
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      const detected = localizer.detectLocale();
+      expect(detected).to.be.eq('de');
     });
 
-    it('should use the first available locale from dictionaries if detection and fallback fail', function () {
-      const localizer = new TestLocalizer({dictionaries, fallbackLocale: 'fr'});
-      const detected = localizer.testDetectLocale();
-      expect(detected).to.equal('en');
-    });
-
-    it('should use the first locale from options.locales as a fallback', function () {
-      const localizer = new TestLocalizer({
-        locales: ['fr', 'en'],
-        dictionaries: {de: {greeting: 'Hallo'}},
-        fallbackLocale: 'it',
+    it('should return the first available locale if no locale is detected and the fallback is not available', function () {
+      const localizer = new Localizer({
+        fallbackLocale: 'fr',
+        detectionOrder: [],
       });
-      const detected = localizer.testDetectLocale();
-      expect(detected).to.equal('fr');
+      localizer.setDictionaries({
+        de: {a: 'a'},
+        en: {b: 'b'},
+      });
+      const detected = localizer.detectLocale();
+      expect(detected).to.be.eq('de');
     });
 
-    it('should return default fallback locale if no dictionaries or locales are available', function () {
-      const localizer = new TestLocalizer();
-      const detected = localizer.testDetectLocale();
-      expect(detected).to.be.eq(DEFAULT_FALLBACK_LOCALE);
+    it('should return the fallbackLocale if no dictionaries are set at all', function () {
+      const localizer = new Localizer({
+        fallbackLocale: 'fr',
+        detectionOrder: [DetectionSource.ENV],
+      });
+      const detected = localizer.detectLocale();
+      expect(detected).to.be.eq('fr');
+    });
+
+    it('should not reset a forced locale by default', function () {
+      process.env.LANG = 'en-US';
+      const localizer = new Localizer({
+        detectionOrder: [DetectionSource.ENV],
+      });
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      localizer.forceLocale('de');
+      localizer.detectLocale();
+      expect(localizer.getLocale()).to.be.eq('de');
+    });
+
+    it('should reset a forced locale when the resetForcedLocale parameter is true', function () {
+      process.env.LANG = 'en-US';
+      const localizer = new Localizer({
+        detectionOrder: [DetectionSource.ENV],
+      });
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      localizer.forceLocale('de');
+      localizer.detectLocale(true);
+      expect(localizer.getLocale()).to.be.eq('en');
+    });
+
+    it('should be re-triggered automatically when dictionaries are changed', function () {
+      process.env.LANG = 'de-DE';
+      const localizer = new Localizer({
+        detectionOrder: [DetectionSource.ENV],
+      });
+      expect(localizer.getLocale()).to.be.eq(DEFAULT_FALLBACK_LOCALE);
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      expect(localizer.getLocale()).to.be.eq('de');
     });
   });
 
-  describe('t', function () {
-    const localizer = new Localizer({dictionaries});
-
-    it('should return the translation for the current locale', function () {
-      localizer.setLocale('ru');
-      expect(localizer.t('greeting')).to.equal('Привет');
+  describe('findSupportedLocale', function () {
+    it('should find an exact match', function () {
+      const localizer = new OpenLocalizer();
+      const result = localizer.publicFindSupportedLocale(
+        'de',
+        AVAILABLE_LOCALES,
+      );
+      expect(result).to.be.eq('de');
     });
 
-    it('should return the key if translation is not found', function () {
-      localizer.setLocale('en');
-      expect(localizer.t('nonexistent.key')).to.equal('nonexistent.key');
+    it('should find an exact match case-insensitively', function () {
+      const localizer = new OpenLocalizer();
+      const result = localizer.publicFindSupportedLocale(
+        'PT-br',
+        AVAILABLE_LOCALES,
+      );
+      expect(result).to.be.eq('pt-BR');
     });
 
-    it('should return the key if the current locale is supported via options.locales but has no dictionary', function () {
-      const customLocalizer = new Localizer({locales: ['fr']});
-      customLocalizer.setLocale('fr');
-      expect(customLocalizer.t('greeting')).to.equal('greeting');
+    it('should find a base language match from a regional candidate', function () {
+      const localizer = new OpenLocalizer();
+      const result = localizer.publicFindSupportedLocale(
+        'en-US',
+        AVAILABLE_LOCALES,
+      );
+      expect(result).to.be.eq('en');
     });
 
-    it('should format placeholders in the translation', function () {
-      localizer.setLocale('en');
-      expect(localizer.t('greetingWithName', 'World')).to.equal(
-        'Hello, World!',
+    it('should find a base language match from a candidate with underscore', function () {
+      const localizer = new OpenLocalizer();
+      const result = localizer.publicFindSupportedLocale(
+        'en_GB',
+        AVAILABLE_LOCALES,
+      );
+      expect(result).to.be.eq('en');
+    });
+
+    it('should return undefined if no match is found', function () {
+      const localizer = new OpenLocalizer();
+      const result = localizer.publicFindSupportedLocale(
+        'fr',
+        AVAILABLE_LOCALES,
+      );
+      expect(result).to.be.undefined;
+    });
+
+    it('should return undefined for an empty candidate string', function () {
+      const localizer = new OpenLocalizer();
+      const result = localizer.publicFindSupportedLocale('', AVAILABLE_LOCALES);
+      expect(result).to.be.undefined;
+    });
+
+    it('should correctly parse a complex accept-language header string', function () {
+      const localizer = new OpenLocalizer();
+      const result = localizer.publicFindSupportedLocale(
+        'de-DE,de;q=0.9,en-US;q=0.8',
+        AVAILABLE_LOCALES,
+      );
+      expect(result).to.be.eq('de');
+    });
+
+    it('should correctly find an exact regional match from a complex header', function () {
+      const localizer = new OpenLocalizer();
+      const result = localizer.publicFindSupportedLocale(
+        'pt-BR,pt;q=0.9',
+        AVAILABLE_LOCALES,
+      );
+      expect(result).to.be.eq('pt-BR');
+    });
+  });
+
+  describe('detectLocaleFromSource', function () {
+    afterEach(function () {
+      delete process.env.LANG;
+      delete process.env.LANGUAGE;
+    });
+
+    it('should return undefined for browser sources when in a Node.js environment', function () {
+      const localizer = new OpenLocalizer();
+      const result = localizer.publicDetectLocaleFromSource(
+        AVAILABLE_LOCALES,
+        DetectionSource.URL_PATH,
+      );
+      expect(result).to.be.undefined;
+    });
+
+    context('when detecting from REQUEST_HEADER', function () {
+      it('should extract locale from the request header', function () {
+        const localizer = new OpenLocalizer();
+        const req = createMockRequest({'accept-language': 'de,en;q=0.9'});
+        localizer.setRequest(req);
+        const result = localizer.publicDetectLocaleFromSource(
+          AVAILABLE_LOCALES,
+          DetectionSource.REQUEST_HEADER,
+        );
+        expect(result).to.be.eq('de');
+      });
+
+      it('should return undefined if request is not set', function () {
+        const localizer = new OpenLocalizer();
+        // No request is set on the instance
+        const result = localizer.publicDetectLocaleFromSource(
+          AVAILABLE_LOCALES,
+          DetectionSource.REQUEST_HEADER,
+        );
+        expect(result).to.be.undefined;
+      });
+
+      it('should use a custom request header name', function () {
+        const localizer = new OpenLocalizer({requestHeaderName: 'x-lang'});
+        const req = createMockRequest({'x-lang': 'pt-BR'});
+        localizer.setRequest(req);
+        const result = localizer.publicDetectLocaleFromSource(
+          AVAILABLE_LOCALES,
+          DetectionSource.REQUEST_HEADER,
+        );
+        expect(result).to.be.eq('pt-BR');
+      });
+    });
+
+    context('when detecting from ENV', function () {
+      it('should extract locale from process.env.LANG', function () {
+        process.env.LANG = 'de_DE.UTF-8';
+        const localizer = new OpenLocalizer();
+        const result = localizer.publicDetectLocaleFromSource(
+          AVAILABLE_LOCALES,
+          DetectionSource.ENV,
+        );
+        expect(result).to.be.eq('de');
+      });
+
+      it('should return undefined if no relevant env vars are set', function () {
+        const localizer = new OpenLocalizer();
+        const result = localizer.publicDetectLocaleFromSource(
+          AVAILABLE_LOCALES,
+          DetectionSource.ENV,
+        );
+        expect(result).to.be.undefined;
+      });
+    });
+
+    context('in a mocked browser environment', function () {
+      it('should detect from URL_PATH at a specific index', function () {
+        setupBrowserMocks({pathname: '/api/v1/en/data'});
+        const localizer = new OpenLocalizer({urlPathIndex: 2});
+        const result = localizer.publicDetectLocaleFromSource(
+          AVAILABLE_LOCALES,
+          DetectionSource.URL_PATH,
+        );
+        expect(result).to.be.eq('en');
+      });
+
+      it('should detect from QUERY with a custom key', function () {
+        setupBrowserMocks({search: '?locale=pt-BR'});
+        const localizer = new OpenLocalizer({queryStringKey: 'locale'});
+        const result = localizer.publicDetectLocaleFromSource(
+          AVAILABLE_LOCALES,
+          DetectionSource.QUERY,
+        );
+        expect(result).to.be.eq('pt-BR');
+      });
+
+      it('should detect from LOCAL_STORAGE with a custom key', function () {
+        setupBrowserMocks({localStorageValues: {myAppLang: 'de'}});
+        const localizer = new OpenLocalizer({localStorageKey: 'myAppLang'});
+        const result = localizer.publicDetectLocaleFromSource(
+          AVAILABLE_LOCALES,
+          DetectionSource.LOCAL_STORAGE,
+        );
+        expect(result).to.be.eq('de');
+      });
+
+      it('should detect from HTML_TAG', function () {
+        setupBrowserMocks({langAttr: 'de'});
+        const localizer = new OpenLocalizer();
+        const result = localizer.publicDetectLocaleFromSource(
+          AVAILABLE_LOCALES,
+          DetectionSource.HTML_TAG,
+        );
+        expect(result).to.be.eq('de');
+      });
+
+      it('should detect from NAVIGATOR', function () {
+        setupBrowserMocks({languages: ['de-CH', 'en-US']});
+        const localizer = new OpenLocalizer();
+        const result = localizer.publicDetectLocaleFromSource(
+          AVAILABLE_LOCALES,
+          DetectionSource.NAVIGATOR,
+        );
+        expect(result).to.be.eq('de');
+      });
+    });
+  });
+
+  describe('Dictionary Management', function () {
+    let localizer: Localizer;
+
+    beforeEach(function () {
+      localizer = new Localizer();
+    });
+
+    it('setDictionaries/getDictionaries should work for root namespace', function () {
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      expect(localizer.getDictionaries()).to.be.eql(ROOT_DICTIONARIES);
+    });
+
+    it('setDictionaries/getDictionaries should work for a specific namespace', function () {
+      localizer.setDictionaries('admin', ADMIN_DICTIONARIES);
+      expect(localizer.getDictionaries('admin')).to.be.eql(ADMIN_DICTIONARIES);
+      expect(localizer.getDictionaries(LOCALIZER_ROOT_NAMESPACE)).to.be.eql({});
+    });
+
+    it('setDictionary/getDictionary should work for root namespace', function () {
+      localizer.setDictionary('fr', {hello: 'Bonjour'});
+      expect(localizer.getDictionary('fr')).to.be.eql({hello: 'Bonjour'});
+    });
+
+    it('setDictionary/getDictionary should work for a specific namespace', function () {
+      localizer.setDictionary('admin', 'fr', {dashboard: 'Tableau de bord'});
+      expect(localizer.getDictionary('admin', 'fr')).to.be.eql({
+        dashboard: 'Tableau de bord',
+      });
+    });
+
+    it('addDictionaries should merge dictionaries', function () {
+      localizer.setDictionaries({en: {a: '1'}});
+      localizer.addDictionaries({en: {b: '2'}, de: {c: '3'}});
+      expect(localizer.getDictionary('en')).to.be.eql({a: '1', b: '2'});
+      expect(localizer.getDictionary('de')).to.be.eql({c: '3'});
+    });
+
+    it('addDictionary should merge a single dictionary', function () {
+      localizer.setDictionary('en', {a: '1'});
+      localizer.addDictionary('en', {b: '2'});
+      expect(localizer.getDictionary('en')).to.be.eql({a: '1', b: '2'});
+    });
+  });
+
+  describe('t (translation)', function () {
+    let localizer: Localizer;
+
+    beforeEach(function () {
+      localizer = new Localizer({fallbackLocale: 'en'});
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      localizer.setDictionaries('admin', ADMIN_DICTIONARIES);
+    });
+
+    it('should translate a simple key for the current locale', function () {
+      localizer.forceLocale('de');
+      expect(localizer.t('farewell')).to.be.eq('Auf Wiedersehen!');
+    });
+
+    it('should format the translated string with arguments', function () {
+      localizer.forceLocale('en');
+      expect(localizer.t('greeting', 'Alice')).to.be.eq('Hello, Alice!');
+    });
+
+    it('should fall back to the fallback locale if key is missing', function () {
+      localizer.forceLocale('de');
+      expect(localizer.t('farewell')).to.be.eq('Auf Wiedersehen!');
+    });
+
+    it('should return the key if translation is not found in any locale', function () {
+      expect(localizer.t('nonexistent.key')).to.be.eq('nonexistent.key');
+    });
+
+    it('should handle pluralization correctly', function () {
+      localizer.forceLocale('en');
+      expect(localizer.t('item', 1)).to.be.eq('You have 1 item.');
+      expect(localizer.t('item', 5)).to.be.eq('You have 5 items.');
+      expect(localizer.t('item', 0)).to.be.eq('You have 0 items.');
+    });
+
+    it('should work with namespaces', function () {
+      const adminLocalizer = localizer.cloneWithNamespace('admin');
+      adminLocalizer.forceLocale('de');
+      expect(adminLocalizer.t('dashboard')).to.be.eq('Instrumententafel');
+      expect(adminLocalizer.t('greeting', 'Admin')).to.be.eq('Hallo, Admin!');
+    });
+
+    it('should fall back to the fallback locale within the same namespace', function () {
+      const localizer = new Localizer({
+        fallbackLocale: 'en',
+        namespace: 'admin',
+      });
+      localizer.setDictionaries('admin', {
+        en: {dashboard: 'Dashboard'},
+        fr: {settings: 'Paramètres'},
+      });
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      localizer.forceLocale('fr');
+      expect(localizer.t('dashboard')).to.be.eq('Dashboard');
+    });
+
+    it('should handle missing "few" form gracefully', function () {
+      const localizer = new Localizer();
+      localizer.setDictionary('en', {
+        item: {one: '%s item', many: '%s items'},
+      });
+      localizer.forceLocale('en');
+      expect(localizer.t('item', 1)).to.be.eq('1 item');
+      expect(localizer.t('item', 2)).to.be.eq('2 items');
+    });
+
+    it('should use the "one" form if no number is provided', function () {
+      const localizer = new Localizer();
+      localizer.setDictionary('en', {
+        message: {one: 'A message'},
+      });
+      expect(localizer.t('message')).to.be.eq('A message');
+    });
+
+    it('should return the key if the numerable entry is an empty object', function () {
+      const localizer = new Localizer();
+      localizer.setDictionary('en', {
+        emptyItem: {},
+      });
+      localizer.forceLocale('en');
+      expect(localizer.t('emptyItem', 5)).to.be.eq('emptyItem');
+    });
+  });
+
+  describe('formatNumerableEntry', function () {
+    it('should select the "one" form for the number 1', function () {
+      const localizer = new OpenLocalizer();
+      const entry = {one: '%s ticket', many: '%s tickets'};
+      const result = localizer.publicFormatNumerableEntry(entry, [1]);
+      expect(result).to.be.eq('1 ticket');
+    });
+
+    it('should select the "many" form for numbers other than 1 (e.g., 0, 2, 5)', function () {
+      const localizer = new OpenLocalizer();
+      const entry = {one: '%s apple', many: '%s apples'};
+      expect(localizer.publicFormatNumerableEntry(entry, [0])).to.be.eq(
+        '0 apples',
+      );
+      expect(localizer.publicFormatNumerableEntry(entry, [2])).to.be.eq(
+        '2 apples',
+      );
+      expect(localizer.publicFormatNumerableEntry(entry, [5])).to.be.eq(
+        '5 apples',
       );
     });
 
-    it('should handle numerable entries for "one"', function () {
-      localizer.setLocale('ru');
-      expect(localizer.t('item', 1)).to.equal('1 товар');
+    it('should correctly use the "few" form when available', function () {
+      const localizer = new OpenLocalizer();
+      const entry = {one: 'one', few: 'few', many: 'many'};
+      expect(localizer.publicFormatNumerableEntry(entry, [2])).to.be.eq('few');
     });
 
-    it('should handle numerable entries for "few"', function () {
-      localizer.setLocale('ru');
-      expect(localizer.t('item', 3)).to.equal('3 товара');
+    it('should format the chosen string with all provided arguments', function () {
+      const localizer = new OpenLocalizer();
+      const entry = {many: 'Found %d results for %v.'};
+      const result = localizer.publicFormatNumerableEntry(entry, [
+        15,
+        'search',
+      ]);
+      expect(result).to.be.eq('Found 15 results for "search".');
     });
 
-    it('should handle numerable entries for "many"', function () {
-      localizer.setLocale('ru');
-      expect(localizer.t('item', 5)).to.equal('5 товаров');
+    it('should use the "one" form if no number is provided in arguments', function () {
+      const localizer = new OpenLocalizer();
+      const entry = {one: 'A thing', many: 'Some things'};
+      const result = localizer.publicFormatNumerableEntry(entry, ['extra']);
+      expect(result).to.be.eq('A thing');
     });
 
-    it('should return the translation for the fallback locale if no dictionary for explicitly set locale', function () {
-      const localizer = new Localizer({dictionaries, fallbackLocale: 'ru'});
-      localizer.setLocale('cn');
-      expect(localizer.t('greeting')).to.be.eq('Привет');
+    it('should fall back to "few" then "many" if "one" is missing and no number is provided', function () {
+      const localizer = new OpenLocalizer();
+      const entryWithFew = {few: 'A few things', many: 'Many things'};
+      const entryWithMany = {many: 'Many things'};
+      expect(localizer.publicFormatNumerableEntry(entryWithFew, [])).to.be.eq(
+        'A few things',
+      );
+      expect(localizer.publicFormatNumerableEntry(entryWithMany, [])).to.be.eq(
+        'Many things',
+      );
+    });
+
+    it('should return an empty string if the entry object is empty', function () {
+      const localizer = new OpenLocalizer();
+      const entry = {};
+      const result = localizer.publicFormatNumerableEntry(entry, [5]);
+      expect(result).to.be.eq('');
+    });
+
+    it('should return an empty string if no suitable key (one, few, many) is found', function () {
+      const localizer = new OpenLocalizer();
+      const entry = {other: 'some value'};
+      const result = localizer.publicFormatNumerableEntry(
+        entry as LocalizerNumerableEntry,
+        [1],
+      );
+      expect(result).to.be.eq('');
+    });
+
+    it('should handle entries with undefined values gracefully', function () {
+      const localizer = new OpenLocalizer();
+      const entry = {one: undefined, many: 'Many items'};
+      expect(localizer.publicFormatNumerableEntry(entry, [1])).to.be.eq(
+        'Many items',
+      );
+      expect(localizer.publicFormatNumerableEntry(entry, [])).to.be.eq(
+        'Many items',
+      );
     });
   });
 
-  describe('o', function () {
-    const localizer = new Localizer({dictionaries, fallbackLocale: 'en'});
-    const langObject: LangObject = {
-      en: 'Hello',
-      ru: 'Привет',
-      de: {one: '%s Ding', many: '%s Dinge'},
+  describe('o (object translation)', function () {
+    let localizer: Localizer;
+    const langObj = {
+      en: 'English Title',
+      de: 'Deutscher Titel',
+      pt: {
+        one: '%s título',
+        many: '%s títulos',
+      },
     };
 
-    it('should return the value for the current locale', function () {
-      localizer.setLocale('ru');
-      expect(localizer.o(langObject)).to.equal('Привет');
+    beforeEach(function () {
+      localizer = new Localizer({fallbackLocale: 'en'});
     });
 
-    it('should return the value for the fallback locale if current is not found', function () {
-      localizer.setLocale('fr');
-      expect(localizer.o(langObject)).to.equal('Hello');
+    it('should pick the string for the current locale', function () {
+      localizer.forceLocale('de');
+      expect(localizer.o(langObj)).to.be.eq('Deutscher Titel');
     });
 
-    it('should handle numerable objects correctly', function () {
-      localizer.setLocale('de');
-      expect(localizer.o(langObject, 5)).to.equal('5 Dinge');
+    it('should fall back to the fallback locale', function () {
+      localizer.forceLocale('fr'); // French is not in the object
+      expect(localizer.o(langObj)).to.be.eq('English Title');
     });
 
-    it('should return the value from the explicitly set locale', function () {
-      const localizer = new Localizer();
-      localizer.setLocale('ru');
-      expect(localizer.o(langObject)).to.be.eq('Привет');
+    it('should fall back to the first available key if no other locale matches', function () {
+      const localizerFr = new Localizer({fallbackLocale: 'es'});
+      localizerFr.forceLocale('fr');
+      expect(localizerFr.o(langObj)).to.be.eq('English Title');
+    });
+
+    it('should handle pluralization from an object entry', function () {
+      localizer.forceLocale('pt');
+      expect(localizer.o(langObj, 1)).to.be.eq('1 título');
+      expect(localizer.o(langObj, 5)).to.be.eq('5 títulos');
+    });
+
+    it('should return an empty string if object is empty or no value is found', function () {
+      expect(localizer.o({})).to.be.eq('');
+      expect(
+        localizer.o({
+          en: undefined,
+          de: null,
+        } as unknown as LocalizerDictionaries),
+      ).to.be.eq('');
+    });
+  });
+
+  describe('Locale Detection (Node.js Environment)', function () {
+    afterEach(function () {
+      delete process.env.LANG;
+      delete process.env.LANGUAGE;
+      delete process.env.LC_MESSAGES;
+      delete process.env.LC_ALL;
+    });
+
+    it('should detect locale from process.env.LANG', function () {
+      process.env.LANG = 'de_DE.UTF-8';
+      const localizer = new Localizer({detectionOrder: [DetectionSource.ENV]});
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      expect(localizer.getLocale()).to.be.eq('de');
+    });
+
+    it('should detect locale from process.env.LANGUAGE', function () {
+      process.env.LANGUAGE = 'de_DE:de';
+      const localizer = new Localizer({detectionOrder: [DetectionSource.ENV]});
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      expect(localizer.getLocale()).to.be.eq('de');
+    });
+
+    it('should detect locale from process.env.LC_MESSAGES', function () {
+      process.env.LC_MESSAGES = 'de_AT.UTF-8';
+      const localizer = new Localizer({detectionOrder: [DetectionSource.ENV]});
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      expect(localizer.getLocale()).to.be.eq('de');
+    });
+
+    it('should detect locale from process.env.LC_ALL', function () {
+      process.env.LC_ALL = 'de-CH';
+      const localizer = new Localizer({detectionOrder: [DetectionSource.ENV]});
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      expect(localizer.getLocale()).to.be.eq('de');
+    });
+
+    it('should prioritize LANG over LC_ALL', function () {
+      process.env.LANG = 'en-US';
+      process.env.LC_ALL = 'de_DE.UTF-8';
+      const localizer = new Localizer({detectionOrder: [DetectionSource.ENV]});
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      expect(localizer.getLocale()).to.be.eq('en');
+    });
+
+    it('should detect locale from request header', function () {
+      const localizer = new Localizer({
+        detectionOrder: [DetectionSource.REQUEST_HEADER],
+      });
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      const req = createMockRequest({'accept-language': 'pt-BR,pt;q=0.9'});
+      localizer.setRequest(req);
+      expect(localizer.getLocale()).to.be.eq('pt-BR');
+    });
+
+    it('should find supported base locale from request header', function () {
+      const localizer = new Localizer({
+        detectionOrder: [DetectionSource.REQUEST_HEADER],
+      });
+      localizer.setDictionaries({de: {}, en: {}});
+      const req = createMockRequest({'accept-language': 'de-AT,de;q=0.9'});
+      const reqLocalizer = localizer.cloneWithRequest(req);
+      expect(reqLocalizer.getLocale()).to.be.eq('de');
+    });
+
+    it('should ignore empty string from a source and proceed to the next', function () {
+      setupBrowserMocks({localStorageValues: {language: ''}, langAttr: 'de'});
+      const localizer = new Localizer({
+        detectionOrder: [
+          DetectionSource.LOCAL_STORAGE,
+          DetectionSource.HTML_TAG,
+        ],
+      });
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      expect(localizer.getLocale()).to.be.eq('de');
+    });
+  });
+
+  describe('Locale Detection (Browser Environment)', function () {
+    const originalWindow = global.window;
+    const originalDocument = global.document;
+    const originalNavigator = global.navigator;
+
+    after(function () {
+      global.window = originalWindow;
+      global.document = originalDocument;
+      global.navigator = originalNavigator;
+    });
+
+    it('should detect locale from URL path', function () {
+      setupBrowserMocks({pathname: '/de/page'});
+      const localizer = new Localizer({
+        detectionOrder: [DetectionSource.URL_PATH],
+        urlPathIndex: 0,
+      });
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      expect(localizer.getLocale()).to.be.eq('de');
+    });
+
+    it('should detect locale from query string', function () {
+      setupBrowserMocks({search: '?lang=pt-BR'});
+      const localizer = new Localizer({
+        detectionOrder: [DetectionSource.QUERY],
+        queryStringKey: 'lang',
+      });
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      expect(localizer.getLocale()).to.be.eq('pt-BR');
+    });
+
+    it('should detect locale from localStorage', function () {
+      setupBrowserMocks({localStorageValues: {language: 'de'}});
+      const localizer = new Localizer({
+        detectionOrder: [DetectionSource.LOCAL_STORAGE],
+        localStorageKey: 'language',
+      });
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      expect(localizer.getLocale()).to.be.eq('de');
+    });
+
+    it('should detect locale from HTML tag', function () {
+      setupBrowserMocks({langAttr: 'de'});
+      const localizer = new Localizer({
+        detectionOrder: [DetectionSource.HTML_TAG],
+      });
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      expect(localizer.getLocale()).to.be.eq('de');
+    });
+
+    it('should detect locale from navigator.languages', function () {
+      setupBrowserMocks({languages: ['de-DE', 'en-US']});
+      const localizer = new Localizer({
+        detectionOrder: [DetectionSource.NAVIGATOR],
+      });
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      expect(localizer.getLocale()).to.be.eq('de');
+    });
+
+    it('should respect the detectionOrder', function () {
+      setupBrowserMocks({
+        pathname: '/en/page',
+        search: '?lang=de',
+        localStorageValues: {language: 'pt-BR'},
+      });
+      const localizer = new Localizer({
+        detectionOrder: [
+          DetectionSource.LOCAL_STORAGE,
+          DetectionSource.QUERY,
+          DetectionSource.URL_PATH,
+        ],
+      });
+      localizer.setDictionaries(ROOT_DICTIONARIES);
+      expect(localizer.getLocale()).to.be.eq('pt-BR');
     });
   });
 });

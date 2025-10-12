@@ -1,57 +1,153 @@
 import { format } from '@e22m4u/js-format';
 import { numWords } from './utils/num-words.js';
-import { LocalizerState } from './localizer-state.js';
-import { detectLocaleFromSource } from './detectors/index.js';
-import { detectLocaleFromRequestHeader } from './detectors/index.js';
+import { removeEmptyKeys } from './utils/index.js';
+/**
+ * Default localizer namespace.
+ */
+export const LOCALIZER_ROOT_NAMESPACE = '$root';
+/**
+ * Detection source.
+ */
+export const DetectionSource = {
+    REQUEST_HEADER: 'requestHeader',
+    URL_PATH: 'urlPath',
+    QUERY: 'query',
+    LOCAL_STORAGE: 'localStorage',
+    HTML_TAG: 'htmlTag',
+    NAVIGATOR: 'navigator',
+    ENV: 'env',
+};
+/**
+ * Default detection order.
+ */
+export const DEFAULT_DETECTION_ORDER = [
+    DetectionSource.REQUEST_HEADER,
+    DetectionSource.URL_PATH,
+    DetectionSource.QUERY,
+    DetectionSource.LOCAL_STORAGE,
+    DetectionSource.HTML_TAG,
+    DetectionSource.NAVIGATOR,
+    DetectionSource.ENV,
+];
+/**
+ * Browser locale sources.
+ */
+export const BROWSER_LOCALE_SOURCES = [
+    DetectionSource.URL_PATH,
+    DetectionSource.QUERY,
+    DetectionSource.LOCAL_STORAGE,
+    DetectionSource.NAVIGATOR,
+    DetectionSource.HTML_TAG,
+];
+/**
+ * Default fallback locale.
+ */
+export const DEFAULT_FALLBACK_LOCALE = 'en';
+/**
+ * Default localizer options.
+ */
+export const DEFAULT_LOCALIZER_OPTIONS = {
+    namespace: undefined,
+    locales: [],
+    fallbackLocale: DEFAULT_FALLBACK_LOCALE,
+    urlPathIndex: 0,
+    queryStringKey: 'lang',
+    localStorageKey: 'language',
+    requestHeaderName: 'accept-language',
+    detectionOrder: DEFAULT_DETECTION_ORDER,
+};
 /**
  * Localizer.
  */
 export class Localizer {
     /**
-     * State.
+     * Dictionaries by namespace.
      */
-    state;
+    nsDictionaries = new Map();
     /**
-     * Options.
+     * Localizer options.
      */
-    get options() {
-        return this.state.options;
+    options = structuredClone(DEFAULT_LOCALIZER_OPTIONS);
+    /**
+     * Detected locale.
+     */
+    detectedLocale;
+    /**
+     * Forced locale.
+     */
+    forcedLocale;
+    /**
+     * Request.
+     */
+    request;
+    /**
+     * Constructor.
+     */
+    constructor(options) {
+        // установка опций имеющих не пустые значения
+        if (options) {
+            const filteredOptions = removeEmptyKeys(options);
+            Object.assign(this.options, filteredOptions);
+        }
     }
     /**
-     * Конструктор класса.
+     * Получить пространство имен.
      */
-    constructor(optionsOrState) {
-        if (optionsOrState instanceof LocalizerState) {
-            this.state = optionsOrState;
-        }
-        else {
-            this.state = new LocalizerState(optionsOrState);
-        }
+    getNamespace() {
+        return this.options.namespace;
     }
     /**
-     * Get locale.
+     * Set request.
+     */
+    setRequest(req) {
+        this.request = req;
+        this.detectLocale();
+        return this;
+    }
+    /**
+     * Получить локаль.
      */
     getLocale() {
-        if (!this.state.currentLocale)
-            this.state.currentLocale = this._detectSupportedLocale();
-        return (this.state.currentLocale ??
-            this.options.defaultLocale ??
-            this.options.fallbackLocale);
+        if (this.forcedLocale)
+            return this.forcedLocale;
+        if (this.detectedLocale)
+            return this.detectedLocale;
+        this.detectLocale();
+        return this.detectedLocale ?? this.options.fallbackLocale;
     }
     /**
-     * Устанавливает текущую локаль.
+     * Сбросить принудительную локаль.
+     */
+    resetForcedLocale() {
+        this.forcedLocale = undefined;
+        return this;
+    }
+    /**
+     * Установить локаль принудительно.
      *
      * @param locale
      */
-    setLocale(locale) {
-        this.state.currentLocale = locale;
+    forceLocale(locale) {
+        this.forcedLocale = locale;
         return this;
     }
     /**
      * Клонирование экземпляра.
+     *
+     * @param options
      */
-    clone() {
-        return new Localizer(this.state.clone());
+    clone(options) {
+        const newOptions = structuredClone(this.options);
+        if (options) {
+            const filteredOptions = removeEmptyKeys(options);
+            Object.assign(newOptions, filteredOptions);
+        }
+        const inst = new Localizer(newOptions);
+        inst.nsDictionaries = structuredClone(this.nsDictionaries);
+        inst.detectedLocale = this.detectedLocale;
+        inst.forcedLocale = this.forcedLocale;
+        inst.request = this.request;
+        return inst;
     }
     /**
      * Клонирование экземпляра с новой локалью.
@@ -59,37 +155,173 @@ export class Localizer {
      * @param locale
      */
     cloneWithLocale(locale) {
-        return new Localizer(this.state.cloneWithLocale(locale));
+        const inst = this.clone();
+        inst.forceLocale(locale);
+        return inst;
     }
     /**
      * Клонирование экземпляра с локалью из заголовка запроса.
      *
      * @param req
      */
-    cloneWithLocaleFromRequest(req) {
-        const locale = detectLocaleFromRequestHeader(this.state.getAvailableLocales(), req.headers, this.options.requestHeaderKey);
-        if (!locale)
-            return this.clone();
-        return this.cloneWithLocale(locale);
+    cloneWithRequest(req) {
+        const inst = this.clone();
+        inst.request = req;
+        inst.detectLocale(true);
+        return inst;
     }
     /**
-     * Добавляет или заменяет справочник для указанной локали.
+     * Clone with namespace.
      *
-     * @param locale
-     * @param dictionary
+     * @param namespace
      */
-    addDictionary(locale, dictionary) {
-        this.state.dictionaries[locale] = dictionary;
+    cloneWithNamespace(namespace) {
+        return this.clone({ namespace });
+    }
+    /**
+     * Получить доступные локали.
+     */
+    getAvailableLocales() {
+        const ns = this.getNamespace() || LOCALIZER_ROOT_NAMESPACE;
+        const nsDicts = this.nsDictionaries.get(ns);
+        const rootDicts = this.nsDictionaries.get(LOCALIZER_ROOT_NAMESPACE);
+        const locales = new Set([
+            ...Object.keys(rootDicts || {}),
+            ...Object.keys(nsDicts || {}),
+        ]);
+        return Array.from(locales);
+    }
+    /**
+     * Получить справочники.
+     *
+     * @param namespace
+     */
+    getDictionaries(namespace) {
+        if (namespace) {
+            return this.nsDictionaries.get(namespace || '') || {};
+        }
+        return this.nsDictionaries.get(LOCALIZER_ROOT_NAMESPACE) || {};
+    }
+    /**
+     * Получить справочник.
+     *
+     * @param namespace
+     * @param locale
+     */
+    getDictionary(namespaceOrLocale, locale) {
+        let namespace;
+        if (arguments.length === 2) {
+            namespace = namespaceOrLocale;
+            locale = locale;
+        }
+        else {
+            locale = namespaceOrLocale;
+        }
+        const dicts = this.getDictionaries(namespace);
+        return dicts[locale] || {};
+    }
+    /**
+     * Установить справочники.
+     *
+     * @param namespaceOrDictionaries
+     * @param dictionaries
+     */
+    setDictionaries(namespaceOrDictionaries, dictionaries) {
+        let namespace;
+        if (arguments.length === 2) {
+            namespace = namespaceOrDictionaries;
+            dictionaries = dictionaries;
+        }
+        else {
+            dictionaries = namespaceOrDictionaries;
+        }
+        const ns = namespace ?? LOCALIZER_ROOT_NAMESPACE;
+        this.nsDictionaries.set(ns, dictionaries);
+        this.detectLocale();
         return this;
     }
     /**
-     * Определяет наиболее подходящую локаль.
+     * Установить справочник.
+     *
+     * @param locale
+     * @param dictionary
+     * @param namespace
      */
-    _detectSupportedLocale() {
-        const availableLocales = this.state.getAvailableLocales();
+    setDictionary(namespaceOrLocale, localeOrDictionary, dictionary) {
+        let namespace, locale;
+        if (arguments.length === 3) {
+            namespace = namespaceOrLocale;
+            locale = localeOrDictionary;
+            dictionary = dictionary;
+        }
+        else {
+            locale = namespaceOrLocale;
+            dictionary = localeOrDictionary;
+        }
+        const ns = namespace ?? LOCALIZER_ROOT_NAMESPACE;
+        const dicts = this.nsDictionaries.get(ns) || {};
+        dicts[locale] = dictionary;
+        this.nsDictionaries.set(ns, dicts);
+        this.detectLocale();
+        return this;
+    }
+    /**
+     * Добавить справочники.
+     *
+     * @param dictionaries
+     * @param namespace
+     */
+    addDictionaries(namespaceOrDictionaries, dictionaries) {
+        let namespace;
+        if (arguments.length === 2) {
+            namespace = namespaceOrDictionaries;
+            dictionaries = dictionaries;
+        }
+        else {
+            dictionaries = namespaceOrDictionaries;
+        }
+        Object.keys(dictionaries).forEach(locale => {
+            this.addDictionary(namespace, locale, dictionaries[locale]);
+        });
+        this.detectLocale();
+        return this;
+    }
+    /**
+     * Добавить справочник.
+     *
+     * @param locale
+     * @param dictionary
+     * @param namespace
+     */
+    addDictionary(namespaceOrLocale, localeOrDictionary, dictionary) {
+        let namespace, locale;
+        if (arguments.length === 3) {
+            namespace = namespaceOrLocale;
+            locale = localeOrDictionary;
+            dictionary = dictionary;
+        }
+        else {
+            locale = namespaceOrLocale;
+            dictionary = localeOrDictionary;
+        }
+        const ns = namespace ?? LOCALIZER_ROOT_NAMESPACE;
+        const dicts = this.nsDictionaries.get(ns) || {};
+        dicts[locale] = dicts[locale] || {};
+        Object.assign(dicts[locale], dictionary);
+        this.nsDictionaries.set(ns, dicts);
+        this.detectLocale();
+        return this;
+    }
+    /**
+     * Определить подходящую локаль.
+     *
+     * @param resetForcedLocale
+     */
+    detectLocale(resetForcedLocale) {
+        const availableLocales = this.getAvailableLocales();
         let detected;
         for (const source of this.options.detectionOrder) {
-            detected = detectLocaleFromSource(availableLocales, source, this.options);
+            detected = this.detectLocaleFromSource(availableLocales, source);
             if (detected)
                 break;
         }
@@ -108,59 +340,175 @@ export class Localizer {
                 finalLocale = fallback;
             }
         }
+        this.detectedLocale = finalLocale;
+        if (resetForcedLocale)
+            this.resetForcedLocale();
         return finalLocale;
     }
     /**
-     * Находит и форматирует перевод по ключу из справочника.
+     * Найти подходящую локаль среди доступных, включая базовый язык.
+     *
+     * @param candidate
+     * @param availableLocales
+     */
+    findSupportedLocale(candidate, availableLocales) {
+        if (!candidate)
+            return;
+        // en-US,en;q=0.9,zh-CN;q=0.8,zh; -> en-US
+        const exactLang = candidate.split(',')[0];
+        const normalizedCandidate = exactLang.toLowerCase();
+        const exactMatch = availableLocales.find(l => l.toLowerCase() === normalizedCandidate);
+        if (exactMatch)
+            return exactMatch;
+        // en_US -> de, en-US -> en
+        const baseLang = normalizedCandidate.split('-')[0].split('_')[0];
+        const baseMatch = availableLocales.find(l => l.toLowerCase() === baseLang);
+        if (baseMatch)
+            return baseMatch;
+        return;
+    }
+    /**
+     * Определить локаль по источнику.
+     *
+     * @param availableLocales
+     * @param source
+     * @param options
+     */
+    detectLocaleFromSource(availableLocales, source) {
+        if (typeof window === 'undefined') {
+            if (BROWSER_LOCALE_SOURCES.includes(source)) {
+                return;
+            }
+        }
+        let candidate;
+        switch (source) {
+            case DetectionSource.REQUEST_HEADER: {
+                if (!this.request)
+                    break;
+                const headerName = this.options.requestHeaderName.toLocaleLowerCase();
+                const headerValue = this.request.headers[headerName];
+                if (headerValue && typeof headerValue === 'string') {
+                    candidate = headerValue;
+                }
+                break;
+            }
+            case DetectionSource.URL_PATH: {
+                const index = this.options.urlPathIndex;
+                const segments = window.location.pathname
+                    .replace(/^\/|\/$/g, '')
+                    .split('/');
+                if (segments.length > index && segments[index])
+                    candidate = segments[index];
+                break;
+            }
+            case DetectionSource.QUERY: {
+                const key = this.options.queryStringKey ?? 'lang';
+                const params = new URLSearchParams(window.location.search);
+                candidate = params.get(key) ?? undefined;
+                break;
+            }
+            case DetectionSource.LOCAL_STORAGE: {
+                const key = this.options.localStorageKey ?? 'language';
+                candidate = window.localStorage.getItem(key) ?? undefined;
+                break;
+            }
+            case DetectionSource.HTML_TAG: {
+                candidate = document.documentElement.getAttribute('lang') ?? undefined;
+                break;
+            }
+            case DetectionSource.NAVIGATOR: {
+                candidate = navigator.languages?.[0] ?? undefined;
+                break;
+            }
+            case DetectionSource.ENV: {
+                if (typeof process === 'undefined' ||
+                    !process.env ||
+                    typeof process.env !== 'object') {
+                    break;
+                }
+                const envLang = process.env.LANG ||
+                    process.env.LANGUAGE ||
+                    process.env.LC_MESSAGES ||
+                    process.env.LC_ALL;
+                // формат может быть 'ru_RU.UTF-8', извлекаем 'ru_RU'
+                candidate = envLang ? envLang.split('.')[0] : undefined;
+                break;
+            }
+        }
+        if (candidate)
+            return this.findSupportedLocale(candidate, availableLocales);
+    }
+    /**
+     * Найти и сформировать перевод по ключу из справочника.
      *
      * @param key
      * @param args
      */
     t(key, ...args) {
-        let locale = this.getLocale();
-        let dict = this.state.dictionaries[locale];
-        if (!dict) {
-            locale = this.options.fallbackLocale;
-            dict = this.state.dictionaries[locale];
+        const ns = this.getNamespace();
+        const locale = this.getLocale();
+        const fallbackLocale = this.options.fallbackLocale;
+        // ns + locale
+        let dict = this.getDictionary(ns, locale);
+        let entry = dict[key];
+        if (!entry) {
+            // ns + fallback
+            dict = this.getDictionary(ns, fallbackLocale);
+            entry = dict[key];
+            if (!entry) {
+                if (LOCALIZER_ROOT_NAMESPACE !== ns) {
+                    // root + locale
+                    dict = this.getDictionary(locale);
+                    entry = dict[key];
+                    if (!entry) {
+                        // root + fallback
+                        dict = this.getDictionary(fallbackLocale);
+                        entry = dict[key];
+                        if (!entry) {
+                            return this.format(key, ...args);
+                        }
+                    }
+                }
+                else {
+                    return this.format(key, ...args);
+                }
+            }
         }
-        if (!dict)
-            return format(key, ...args);
-        const entry = dict[key];
-        if (!entry)
-            return format(key, ...args);
         if (typeof entry === 'string')
-            return format(entry, ...args);
+            return this.format(entry, ...args);
         if (typeof entry !== 'object')
-            return format(key, ...args);
-        const res = this._formatNumerableEntry(entry, args);
+            return this.format(key, ...args);
+        const res = this.formatNumerableEntry(entry, args);
         if (!res)
-            return format(key, ...args);
+            return this.format(key, ...args);
         return res;
     }
     /**
-     * Форматирует запись для множественных чисел.
+     * Сформировать запись для множественных чисел.
      *
      * @param entry
      * @param args
      */
-    _formatNumerableEntry(entry, args) {
-        const one = entry.one || '';
+    formatNumerableEntry(entry, args) {
+        const one = entry.one || undefined;
         const few = entry.few || undefined;
-        const many = entry.many || '';
+        const many = entry.many || undefined;
+        const fallback = one || few || many || '';
         const numArg = args.find(v => typeof v === 'number');
         if (typeof numArg === 'number') {
-            const pattern = numWords(numArg, one, few, many);
+            let pattern = numWords(numArg, one || '', few, many);
             if (!pattern)
-                return '';
-            return format(pattern, ...args);
+                pattern = numWords(numArg, fallback);
+            if (!pattern)
+                return fallback;
+            return this.format(pattern, ...args);
         }
-        const pattern = one || few || many;
-        if (!pattern)
+        if (!fallback)
             return '';
-        return format(pattern, ...args);
+        return this.format(fallback, ...args);
     }
     /**
-     * Извлекает и форматирует перевод из объекта для текущей локали.
+     * Извлечь и форматировать перевод из объекта для текущей локали.
      *
      * @param obj
      * @param args
@@ -181,11 +529,25 @@ export class Localizer {
         if (entry == null)
             return '';
         if (typeof entry === 'object' && entry != null) {
-            return (this._formatNumerableEntry(entry, args) ?? '');
+            return (this.formatNumerableEntry(entry, args) ?? '');
         }
         if (typeof entry === 'string') {
-            return format(entry, ...args);
+            return this.format(entry, ...args);
         }
         return '';
+    }
+    /**
+     * Format.
+     *
+     * @param pattern
+     * @param args
+     */
+    format(pattern, ...args) {
+        if (/%[sdjvl]/.test(pattern)) {
+            return format(pattern, ...args);
+        }
+        else {
+            return pattern;
+        }
     }
 }
