@@ -1,3 +1,4 @@
+import {Flatten} from './types.js';
 import {removeEmptyKeys} from './utils/index.js';
 
 /**
@@ -32,6 +33,11 @@ export type LocalizerOptions = {
   detectionOrder: DetectionSource[];
   dictionaries: LocalizerDictionaries;
 };
+
+/**
+ * Localizer options input.
+ */
+export type LocalizerOptionsInput = Flatten<Partial<LocalizerOptions>>;
 
 /**
  * Default detection order.
@@ -112,7 +118,7 @@ export class LocalizerState {
    * @param currentLocale
    */
   constructor(
-    options: Partial<LocalizerOptions> = {},
+    options: LocalizerOptionsInput = {},
     public dictionaries: LocalizerDictionaries = {},
     public currentLocale?: string,
   ) {

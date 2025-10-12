@@ -3,6 +3,7 @@ import { LocalizerEntry } from './localizer-state.js';
 import { LocalizerState } from './localizer-state.js';
 import { LocalizerOptions } from './localizer-state.js';
 import { LocalizerDictionary } from './localizer-state.js';
+import { LocalizerOptionsInput } from './localizer-state.js';
 import { LocalizerNumerableEntry } from './localizer-state.js';
 /**
  * Lang object.
@@ -23,7 +24,7 @@ export declare class Localizer {
     /**
      * Конструктор класса.
      */
-    constructor(optionsOrState?: Partial<LocalizerOptions> | LocalizerState);
+    constructor(optionsOrState?: LocalizerOptionsInput | LocalizerState);
     /**
      * Get locale.
      */

@@ -5,6 +5,7 @@ import {LocalizerEntry} from './localizer-state.js';
 import {LocalizerState} from './localizer-state.js';
 import {LocalizerOptions} from './localizer-state.js';
 import {LocalizerDictionary} from './localizer-state.js';
+import {LocalizerOptionsInput} from './localizer-state.js';
 import {detectLocaleFromSource} from './detectors/index.js';
 import {LocalizerNumerableEntry} from './localizer-state.js';
 import {detectLocaleFromRequestHeader} from './detectors/index.js';
@@ -33,7 +34,7 @@ export class Localizer {
   /**
    * Конструктор класса.
    */
-  constructor(optionsOrState?: Partial<LocalizerOptions> | LocalizerState) {
+  constructor(optionsOrState?: LocalizerOptionsInput | LocalizerState) {
     if (optionsOrState instanceof LocalizerState) {
       this.state = optionsOrState;
     } else {

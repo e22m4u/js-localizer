@@ -1,3 +1,4 @@
+import { Flatten } from './types.js';
 /**
  * Detection source.
  */
@@ -27,6 +28,10 @@ export type LocalizerOptions = {
     detectionOrder: DetectionSource[];
     dictionaries: LocalizerDictionaries;
 };
+/**
+ * Localizer options input.
+ */
+export type LocalizerOptionsInput = Flatten<Partial<LocalizerOptions>>;
 /**
  * Default detection order.
  */
@@ -80,7 +85,7 @@ export declare class LocalizerState {
      * @param dictionaries
      * @param currentLocale
      */
-    constructor(options?: Partial<LocalizerOptions>, dictionaries?: LocalizerDictionaries, currentLocale?: string | undefined);
+    constructor(options?: LocalizerOptionsInput, dictionaries?: LocalizerDictionaries, currentLocale?: string | undefined);
     /**
      * Clone.
      */
