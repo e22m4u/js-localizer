@@ -25,7 +25,7 @@ export type DetectionSource = (typeof DetectionSource)[keyof typeof DetectionSou
  * Localizer state.
  */
 export type LocalizerState = {
-    locales: string[];
+    supportedLocales: string[];
     fallbackLocale: string;
     detectedLocale: string | undefined;
     forcedLocale: string | undefined;

@@ -508,7 +508,7 @@ describe('Localizer', function () {
       expect(localizer.getLocale()).to.be.eq('fr');
       expect(localizer.t('greeting')).to.be.eq('Hello');
     });
-    
+
     it('should update the internal detectedLocale state', function () {
       setupBrowserMocks({search: '?lang=de'});
       const localizer = new Localizer({

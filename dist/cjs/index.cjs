@@ -112,7 +112,7 @@ var BROWSER_LOCALE_SOURCES = [
   DetectionSource.HTML_TAG
 ];
 var LOCALIZER_INITIAL_STATE = {
-  locales: [],
+  supportedLocales: [],
   fallbackLocale: "en",
   detectedLocale: void 0,
   forcedLocale: void 0,
@@ -234,7 +234,10 @@ var _Localizer = class _Localizer extends import_js_service.Service {
    * Получить доступные локали.
    */
   getAvailableLocales() {
-    const locales = new Set(Object.keys(this.state.dictionaries));
+    const locales = /* @__PURE__ */ new Set([
+      ...Object.keys(this.state.dictionaries),
+      ...this.state.supportedLocales
+    ]);
     if (this.state.forcedLocale)
       locales.add(this.state.forcedLocale);
     return Array.from(locales);

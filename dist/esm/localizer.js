@@ -42,7 +42,7 @@ export const BROWSER_LOCALE_SOURCES = [
  * Localizer initial state.
  */
 export const LOCALIZER_INITIAL_STATE = {
-    locales: [],
+    supportedLocales: [],
     fallbackLocale: 'en',
     detectedLocale: undefined,
     forcedLocale: undefined,
@@ -167,7 +167,10 @@ export class Localizer extends Service {
      * Получить доступные локали.
      */
     getAvailableLocales() {
-        const locales = new Set(Object.keys(this.state.dictionaries));
+        const locales = new Set([
+            ...Object.keys(this.state.dictionaries),
+            ...this.state.supportedLocales,
+        ]);
         if (this.state.forcedLocale)
             locales.add(this.state.forcedLocale);
         return Array.from(locales);
