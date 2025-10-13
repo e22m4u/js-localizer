@@ -1,12 +1,10 @@
 import { IncomingMessage } from 'http';
+import { Service } from '@e22m4u/js-service';
+import { ServiceContainer } from '@e22m4u/js-service';
 /**
  * Lang object.
  */
 export type LangObject = Record<string, LocalizerEntry>;
-/**
- * Default localizer namespace.
- */
-export declare const LOCALIZER_ROOT_NAMESPACE = "$root";
 /**
  * Detection source.
  */
@@ -24,22 +22,25 @@ export declare const DetectionSource: {
  */
 export type DetectionSource = (typeof DetectionSource)[keyof typeof DetectionSource];
 /**
- * Localizer options.
+ * Localizer state.
  */
-export type LocalizerOptions = {
-    namespace: string | undefined;
+export type LocalizerState = {
     locales: string[];
     fallbackLocale: string;
+    detectedLocale: string | undefined;
+    forcedLocale: string | undefined;
     urlPathIndex: number;
     queryStringKey: string;
     localStorageKey: string;
     requestHeaderName: string;
     detectionOrder: DetectionSource[];
+    dictionaries: LocalizerDictionaries;
+    httpRequest: IncomingMessage | undefined;
 };
 /**
- * Localizer options input.
+ * Localizer options.
  */
-export type LocalizerOptionsInput = Partial<LocalizerOptions>;
+export type LocalizerOptions = Partial<LocalizerState>;
 /**
  * Default detection order.
  */
@@ -49,13 +50,9 @@ export declare const DEFAULT_DETECTION_ORDER: DetectionSource[];
  */
 export declare const BROWSER_LOCALE_SOURCES: DetectionSource[];
 /**
- * Default fallback locale.
+ * Localizer initial state.
  */
-export declare const DEFAULT_FALLBACK_LOCALE = "en";
-/**
- * Default localizer options.
- */
-export declare const DEFAULT_LOCALIZER_OPTIONS: LocalizerOptions;
+export declare const LOCALIZER_INITIAL_STATE: LocalizerState;
 /**
  * Localizer numerable entry.
  */
@@ -81,93 +78,68 @@ export type LocalizerDictionaries = {
     [locale: string]: LocalizerDictionary;
 };
 /**
- * Localizer namespaced dictionaries.
- */
-export type LocalizerNamespacedDictionaries = Map<string, LocalizerDictionaries>;
-/**
  * Localizer.
  */
-export declare class Localizer {
+export declare class Localizer extends Service {
     /**
-     * Dictionaries by namespace.
+     * Localizer state.
      */
-    protected nsDictionaries: LocalizerNamespacedDictionaries;
-    /**
-     * Localizer options.
-     */
-    options: LocalizerOptions;
-    /**
-     * Detected locale.
-     */
-    protected detectedLocale?: string;
-    /**
-     * Forced locale.
-     */
-    protected forcedLocale?: string;
-    /**
-     * Request.
-     */
-    protected request?: IncomingMessage;
+    protected state: LocalizerState;
     /**
      * Constructor.
+     *
+     * @param containerOrOptions
+     * @param options
      */
-    constructor(options?: LocalizerOptionsInput);
+    constructor(containerOrOptions?: ServiceContainer | LocalizerOptions, options?: LocalizerOptions);
     /**
-     * Получить пространство имен.
+     * Get state.
      */
-    getNamespace(): string | undefined;
+    getState(): LocalizerState;
     /**
-     * Set request.
+     * Get http request.
      */
-    setRequest(req: IncomingMessage): this;
+    getHttpRequest(): IncomingMessage | undefined;
     /**
      * Получить локаль.
      */
     getLocale(): string;
     /**
-     * Сбросить принудительную локаль.
-     */
-    resetForcedLocale(): this;
-    /**
      * Установить локаль принудительно.
      *
      * @param locale
      */
-    forceLocale(locale: string): this;
+    setLocale(locale: string): this;
+    /**
+     * Сбросить принудительную локаль.
+     */
+    resetLocale(): this;
     /**
      * Клонирование экземпляра.
      *
      * @param options
      */
-    clone(options?: LocalizerOptionsInput): Localizer;
+    clone(options?: LocalizerOptions): Localizer;
     /**
      * Клонирование экземпляра с новой локалью.
      *
      * @param locale
      */
-    cloneWithLocale(locale: string): Localizer;
+    withLocale(locale: string): Localizer;
     /**
      * Клонирование экземпляра с локалью из заголовка запроса.
      *
      * @param req
      */
-    cloneWithRequest(req: IncomingMessage): Localizer;
-    /**
-     * Clone with namespace.
-     *
-     * @param namespace
-     */
-    cloneWithNamespace(namespace: string): Localizer;
+    withHttpRequest(req: IncomingMessage): Localizer;
     /**
      * Получить доступные локали.
      */
     getAvailableLocales(): string[];
     /**
      * Получить справочники.
-     *
-     * @param namespace
      */
-    getDictionaries(namespace?: string): LocalizerDictionaries;
+    getDictionaries(): LocalizerDictionaries;
     /**
      * Получить справочник.
      *
@@ -175,38 +147,11 @@ export declare class Localizer {
      */
     getDictionary(locale: string): LocalizerDictionary;
     /**
-     * Получить справочник.
-     *
-     * @param locale
-     */
-    getDictionary(namespace: string, locale: string): LocalizerDictionary;
-    /**
-     * Получить справочник.
-     *
-     * @param namespace
-     * @param locale
-     */
-    getDictionary(namespace: string | undefined, locale: string): LocalizerDictionary;
-    /**
      * Установить справочники.
      *
      * @param dictionaries
      */
     setDictionaries(dictionaries: LocalizerDictionaries): this;
-    /**
-     * Установить справочники.
-     *
-     * @param namespace
-     * @param dictionaries
-     */
-    setDictionaries(namespace: string, dictionaries: LocalizerDictionaries): this;
-    /**
-     * Установить справочники.
-     *
-     * @param namespace
-     * @param dictionaries
-     */
-    setDictionaries(namespace: string | undefined, dictionaries: LocalizerDictionaries): this;
     /**
      * Установить справочник.
      *
@@ -215,41 +160,11 @@ export declare class Localizer {
      */
     setDictionary(locale: string, dictionary: LocalizerDictionary): this;
     /**
-     * Установить справочник.
-     *
-     * @param locale
-     * @param dictionary
-     * @param namespace
-     */
-    setDictionary(namespace: string, locale: string, dictionary: LocalizerDictionary): this;
-    /**
-     * Установить справочник.
-     *
-     * @param locale
-     * @param dictionary
-     * @param namespace
-     */
-    setDictionary(namespace: string | undefined, locale: string, dictionary: LocalizerDictionary): this;
-    /**
      * Добавить справочники.
      *
      * @param dictionaries
      */
     addDictionaries(dictionaries: LocalizerDictionaries): this;
-    /**
-     * Добавить справочники.
-     *
-     * @param dictionaries
-     * @param namespace
-     */
-    addDictionaries(namespace: string, dictionaries: LocalizerDictionaries): this;
-    /**
-     * Добавить справочники.
-     *
-     * @param dictionaries
-     * @param namespace
-     */
-    addDictionaries(namespace: string | undefined, dictionaries: LocalizerDictionaries): this;
     /**
      * Добавить справочник.
      *
@@ -258,27 +173,11 @@ export declare class Localizer {
      */
     addDictionary(locale: string, dictionary: LocalizerDictionary): this;
     /**
-     * Добавить справочник.
-     *
-     * @param locale
-     * @param dictionary
-     * @param namespace
-     */
-    addDictionary(namespace: string, locale: string, dictionary: LocalizerDictionary): this;
-    /**
-     * Добавить справочник.
-     *
-     * @param locale
-     * @param dictionary
-     * @param namespace
-     */
-    addDictionary(namespace: string | undefined, locale: string, dictionary: LocalizerDictionary): this;
-    /**
      * Определить подходящую локаль.
      *
-     * @param resetForcedLocale
+     * @param noResetLocale
      */
-    detectLocale(resetForcedLocale?: boolean): string;
+    detectLocale(noResetLocale?: boolean): string;
     /**
      * Найти подходящую локаль среди доступных, включая базовый язык.
      *

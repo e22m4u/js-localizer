@@ -1,17 +1,15 @@
 import {IncomingMessage} from 'http';
 import {format} from '@e22m4u/js-format';
+import {Service} from '@e22m4u/js-service';
+import {assignDeep} from './utils/index.js';
 import {numWords} from './utils/num-words.js';
-import {removeEmptyKeys} from './utils/index.js';
+import {ServiceContainer} from '@e22m4u/js-service';
+import {isServiceContainer} from '@e22m4u/js-service';
 
 /**
  * Lang object.
  */
 export type LangObject = Record<string, LocalizerEntry>;
-
-/**
- * Default localizer namespace.
- */
-export const LOCALIZER_ROOT_NAMESPACE = '$root';
 
 /**
  * Detection source.
@@ -33,23 +31,26 @@ export type DetectionSource =
   (typeof DetectionSource)[keyof typeof DetectionSource];
 
 /**
- * Localizer options.
+ * Localizer state.
  */
-export type LocalizerOptions = {
-  namespace: string | undefined;
+export type LocalizerState = {
   locales: string[];
   fallbackLocale: string;
+  detectedLocale: string | undefined;
+  forcedLocale: string | undefined;
   urlPathIndex: number;
   queryStringKey: string;
   localStorageKey: string;
   requestHeaderName: string;
   detectionOrder: DetectionSource[];
+  dictionaries: LocalizerDictionaries;
+  httpRequest: IncomingMessage | undefined;
 };
 
 /**
- * Localizer options input.
+ * Localizer options.
  */
-export type LocalizerOptionsInput = Partial<LocalizerOptions>;
+export type LocalizerOptions = Partial<LocalizerState>;
 
 /**
  * Default detection order.
@@ -76,22 +77,20 @@ export const BROWSER_LOCALE_SOURCES: DetectionSource[] = [
 ];
 
 /**
- * Default fallback locale.
+ * Localizer initial state.
  */
-export const DEFAULT_FALLBACK_LOCALE = 'en';
-
-/**
- * Default localizer options.
- */
-export const DEFAULT_LOCALIZER_OPTIONS: LocalizerOptions = {
-  namespace: undefined,
+export const LOCALIZER_INITIAL_STATE: LocalizerState = {
   locales: [],
-  fallbackLocale: DEFAULT_FALLBACK_LOCALE,
+  fallbackLocale: 'en',
+  detectedLocale: undefined,
+  forcedLocale: undefined,
   urlPathIndex: 0,
   queryStringKey: 'lang',
   localStorageKey: 'language',
   requestHeaderName: 'accept-language',
   detectionOrder: DEFAULT_DETECTION_ORDER,
+  dictionaries: {},
+  httpRequest: undefined,
 };
 
 /**
@@ -123,85 +122,72 @@ export type LocalizerDictionaries = {
 };
 
 /**
- * Localizer namespaced dictionaries.
- */
-export type LocalizerNamespacedDictionaries = Map<
-  string,
-  LocalizerDictionaries
->;
-
-/**
  * Localizer.
  */
-export class Localizer {
+export class Localizer extends Service {
   /**
-   * Dictionaries by namespace.
+   * Localizer state.
    */
-  protected nsDictionaries: LocalizerNamespacedDictionaries = new Map();
-
-  /**
-   * Localizer options.
-   */
-  options: LocalizerOptions = structuredClone(DEFAULT_LOCALIZER_OPTIONS);
-
-  /**
-   * Detected locale.
-   */
-  protected detectedLocale?: string;
-
-  /**
-   * Forced locale.
-   */
-  protected forcedLocale?: string;
-
-  /**
-   * Request.
-   */
-  protected request?: IncomingMessage;
+  protected state: LocalizerState = structuredClone(LOCALIZER_INITIAL_STATE);
 
   /**
    * Constructor.
+   *
+   * @param containerOrOptions
+   * @param options
    */
-  constructor(options?: LocalizerOptionsInput) {
-    // установка опций имеющих не пустые значения
+  constructor(
+    containerOrOptions?: ServiceContainer | LocalizerOptions,
+    options?: LocalizerOptions,
+  ) {
+    if (isServiceContainer(containerOrOptions)) {
+      super(containerOrOptions);
+    } else {
+      super();
+      options = containerOrOptions;
+    }
     if (options) {
-      const filteredOptions = removeEmptyKeys(options);
-      Object.assign(this.options, filteredOptions);
+      const optionsClone: LocalizerOptions = structuredClone({
+        ...options,
+        httpRequest: undefined,
+      });
+      optionsClone.httpRequest = options.httpRequest;
+      Object.assign(this.state, optionsClone);
     }
   }
 
   /**
-   * Получить пространство имен.
+   * Get state.
    */
-  getNamespace() {
-    return this.options.namespace;
+  getState() {
+    const state: LocalizerState = structuredClone({
+      ...this.state,
+      httpRequest: undefined,
+    });
+    state.httpRequest = this.state.httpRequest;
+    return state;
   }
 
   /**
-   * Set request.
+   * Get http request.
    */
-  setRequest(req: IncomingMessage) {
-    this.request = req;
-    this.detectLocale();
-    return this;
+  getHttpRequest() {
+    if (this.state.httpRequest) {
+      return this.state.httpRequest;
+    }
+    if (this.hasService(IncomingMessage)) {
+      return this.getService(IncomingMessage);
+    }
   }
 
   /**
    * Получить локаль.
    */
   getLocale(): string {
-    if (this.forcedLocale) return this.forcedLocale;
-    if (this.detectedLocale) return this.detectedLocale;
-    this.detectLocale();
-    return this.detectedLocale ?? this.options.fallbackLocale;
-  }
-
-  /**
-   * Сбросить принудительную локаль.
-   */
-  resetForcedLocale() {
-    this.forcedLocale = undefined;
-    return this;
+    if (this.state.forcedLocale) return this.state.forcedLocale;
+    if (this.state.detectedLocale) return this.state.detectedLocale;
+    this.detectLocale(true);
+    return this.state.detectedLocale ?? this.state.fallbackLocale;
   }
 
   /**
@@ -209,8 +195,16 @@ export class Localizer {
    *
    * @param locale
    */
-  forceLocale(locale: string): this {
-    this.forcedLocale = locale;
+  setLocale(locale: string): this {
+    this.state.forcedLocale = locale;
+    return this;
+  }
+
+  /**
+   * Сбросить принудительную локаль.
+   */
+  resetLocale() {
+    this.state.forcedLocale = undefined;
     return this;
   }
 
@@ -219,18 +213,10 @@ export class Localizer {
    *
    * @param options
    */
-  clone(options?: LocalizerOptionsInput) {
-    const newOptions = structuredClone(this.options);
-    if (options) {
-      const filteredOptions = removeEmptyKeys(options);
-      Object.assign(newOptions, filteredOptions);
-    }
-    const inst = new Localizer(newOptions);
-    inst.nsDictionaries = structuredClone(this.nsDictionaries);
-    inst.detectedLocale = this.detectedLocale;
-    inst.forcedLocale = this.forcedLocale;
-    inst.request = this.request;
-    return inst;
+  clone(options?: LocalizerOptions) {
+    const newState = this.getState();
+    Object.assign(newState, options);
+    return new Localizer(this.container, newState);
   }
 
   /**
@@ -238,9 +224,9 @@ export class Localizer {
    *
    * @param locale
    */
-  cloneWithLocale(locale: string) {
+  withLocale(locale: string) {
     const inst = this.clone();
-    inst.forceLocale(locale);
+    inst.setLocale(locale);
     return inst;
   }
 
@@ -249,46 +235,25 @@ export class Localizer {
    *
    * @param req
    */
-  cloneWithRequest(req: IncomingMessage) {
-    const inst = this.clone();
-    inst.request = req;
-    inst.detectLocale(true);
+  withHttpRequest(req: IncomingMessage) {
+    const inst = this.clone({httpRequest: req, detectedLocale: undefined});
     return inst;
-  }
-
-  /**
-   * Clone with namespace.
-   *
-   * @param namespace
-   */
-  cloneWithNamespace(namespace: string) {
-    return this.clone({namespace});
   }
 
   /**
    * Получить доступные локали.
    */
   getAvailableLocales(): string[] {
-    const ns = this.getNamespace() || LOCALIZER_ROOT_NAMESPACE;
-    const nsDicts = this.nsDictionaries.get(ns);
-    const rootDicts = this.nsDictionaries.get(LOCALIZER_ROOT_NAMESPACE);
-    const locales = new Set([
-      ...Object.keys(rootDicts || {}),
-      ...Object.keys(nsDicts || {}),
-    ]);
+    const locales = new Set(Object.keys(this.state.dictionaries));
+    if (this.state.forcedLocale) locales.add(this.state.forcedLocale);
     return Array.from(locales);
   }
 
   /**
    * Получить справочники.
-   *
-   * @param namespace
    */
-  getDictionaries(namespace?: string) {
-    if (namespace) {
-      return this.nsDictionaries.get(namespace || '') || {};
-    }
-    return this.nsDictionaries.get(LOCALIZER_ROOT_NAMESPACE) || {};
+  getDictionaries(): LocalizerDictionaries {
+    return structuredClone(this.state.dictionaries);
   }
 
   /**
@@ -296,42 +261,9 @@ export class Localizer {
    *
    * @param locale
    */
-  getDictionary(locale: string): LocalizerDictionary;
-
-  /**
-   * Получить справочник.
-   *
-   * @param locale
-   */
-  getDictionary(namespace: string, locale: string): LocalizerDictionary;
-
-  /**
-   * Получить справочник.
-   *
-   * @param namespace
-   * @param locale
-   */
-  getDictionary(
-    namespace: string | undefined,
-    locale: string,
-  ): LocalizerDictionary;
-
-  /**
-   * Получить справочник.
-   *
-   * @param namespace
-   * @param locale
-   */
-  getDictionary(namespaceOrLocale: string | undefined, locale?: string) {
-    let namespace: string | undefined;
-    if (arguments.length === 2) {
-      namespace = namespaceOrLocale as string;
-      locale = locale as string;
-    } else {
-      locale = namespaceOrLocale as string;
-    }
-    const dicts = this.getDictionaries(namespace);
-    return dicts[locale] || {};
+  getDictionary(locale: string): LocalizerDictionary {
+    const dicts = this.state.dictionaries;
+    return dicts[locale] ? structuredClone(dicts[locale]) : {};
   }
 
   /**
@@ -339,47 +271,9 @@ export class Localizer {
    *
    * @param dictionaries
    */
-  setDictionaries(dictionaries: LocalizerDictionaries): this;
-
-  /**
-   * Установить справочники.
-   *
-   * @param namespace
-   * @param dictionaries
-   */
-  setDictionaries(namespace: string, dictionaries: LocalizerDictionaries): this;
-
-  /**
-   * Установить справочники.
-   *
-   * @param namespace
-   * @param dictionaries
-   */
-  setDictionaries(
-    namespace: string | undefined,
-    dictionaries: LocalizerDictionaries,
-  ): this;
-
-  /**
-   * Установить справочники.
-   *
-   * @param namespaceOrDictionaries
-   * @param dictionaries
-   */
-  setDictionaries(
-    namespaceOrDictionaries: string | LocalizerDictionaries | undefined,
-    dictionaries?: LocalizerDictionaries,
-  ) {
-    let namespace: string | undefined;
-    if (arguments.length === 2) {
-      namespace = namespaceOrDictionaries as string;
-      dictionaries = dictionaries as LocalizerDictionaries;
-    } else {
-      dictionaries = namespaceOrDictionaries as LocalizerDictionaries;
-    }
-    const ns = namespace ?? LOCALIZER_ROOT_NAMESPACE;
-    this.nsDictionaries.set(ns, dictionaries);
-    this.detectLocale();
+  setDictionaries(dictionaries: LocalizerDictionaries) {
+    this.state.dictionaries = dictionaries;
+    this.state.detectedLocale = undefined;
     return this;
   }
 
@@ -389,60 +283,9 @@ export class Localizer {
    * @param locale
    * @param dictionary
    */
-  setDictionary(locale: string, dictionary: LocalizerDictionary): this;
-
-  /**
-   * Установить справочник.
-   *
-   * @param locale
-   * @param dictionary
-   * @param namespace
-   */
-  setDictionary(
-    namespace: string,
-    locale: string,
-    dictionary: LocalizerDictionary,
-  ): this;
-
-  /**
-   * Установить справочник.
-   *
-   * @param locale
-   * @param dictionary
-   * @param namespace
-   */
-  setDictionary(
-    namespace: string | undefined,
-    locale: string,
-    dictionary: LocalizerDictionary,
-  ): this;
-
-  /**
-   * Установить справочник.
-   *
-   * @param locale
-   * @param dictionary
-   * @param namespace
-   */
-  setDictionary(
-    namespaceOrLocale: string | undefined,
-    localeOrDictionary: string | LocalizerDictionary,
-    dictionary?: LocalizerDictionary,
-  ) {
-    let namespace: string | undefined, locale: string;
-    if (arguments.length === 3) {
-      namespace = namespaceOrLocale;
-      locale = localeOrDictionary as string;
-      dictionary = dictionary as LocalizerDictionary;
-    } else {
-      locale = namespaceOrLocale as string;
-      dictionary = localeOrDictionary as LocalizerDictionary;
-    }
-    const ns = namespace ?? LOCALIZER_ROOT_NAMESPACE;
-    const dicts = this.nsDictionaries.get(ns) || {};
-    dicts[locale] = dictionary;
-    this.nsDictionaries.set(ns, dicts);
-    this.detectLocale();
+  setDictionary(locale: string, dictionary: LocalizerDictionary) {
+    this.state.dictionaries[locale] = dictionary;
+    this.state.detectedLocale = undefined;
     return this;
   }
 
@@ -451,48 +294,9 @@ export class Localizer {
    *
    * @param dictionaries
    */
-  addDictionaries(dictionaries: LocalizerDictionaries): this;
-
-  /**
-   * Добавить справочники.
-   *
-   * @param dictionaries
-   * @param namespace
-   */
-  addDictionaries(namespace: string, dictionaries: LocalizerDictionaries): this;
-
-  /**
-   * Добавить справочники.
-   *
-   * @param dictionaries
-   * @param namespace
-   */
-  addDictionaries(
-    namespace: string | undefined,
-    dictionaries: LocalizerDictionaries,
-  ): this;
-
-  /**
-   * Добавить справочники.
-   *
-   * @param dictionaries
-   * @param namespace
-   */
-  addDictionaries(
-    namespaceOrDictionaries: string | LocalizerDictionaries | undefined,
-    dictionaries?: LocalizerDictionaries,
-  ) {
-    let namespace: string | undefined;
-    if (arguments.length === 2) {
-      namespace = namespaceOrDictionaries as string;
-      dictionaries = dictionaries as LocalizerDictionaries;
-    } else {
-      dictionaries = namespaceOrDictionaries as LocalizerDictionaries;
-    }
-    Object.keys(dictionaries).forEach(locale => {
-      this.addDictionary(namespace, locale, dictionaries[locale]);
-    });
-    this.detectLocale();
+  addDictionaries(dictionaries: LocalizerDictionaries) {
+    assignDeep(this.state.dictionaries, dictionaries);
+    this.state.detectedLocale = undefined;
     return this;
   }
 
@@ -502,79 +306,28 @@ export class Localizer {
    * @param locale
    * @param dictionary
    */
-  addDictionary(locale: string, dictionary: LocalizerDictionary): this;
-
-  /**
-   * Добавить справочник.
-   *
-   * @param locale
-   * @param dictionary
-   * @param namespace
-   */
-  addDictionary(
-    namespace: string,
-    locale: string,
-    dictionary: LocalizerDictionary,
-  ): this;
-
-  /**
-   * Добавить справочник.
-   *
-   * @param locale
-   * @param dictionary
-   * @param namespace
-   */
-  addDictionary(
-    namespace: string | undefined,
-    locale: string,
-    dictionary: LocalizerDictionary,
-  ): this;
-
-  /**
-   * Добавить справочник.
-   *
-   * @param locale
-   * @param dictionary
-   * @param namespace
-   */
-  addDictionary(
-    namespaceOrLocale: string | undefined,
-    localeOrDictionary: string | LocalizerDictionary,
-    dictionary?: LocalizerDictionary,
-  ) {
-    let namespace: string | undefined, locale: string;
-    if (arguments.length === 3) {
-      namespace = namespaceOrLocale;
-      locale = localeOrDictionary as string;
-      dictionary = dictionary as LocalizerDictionary;
-    } else {
-      locale = namespaceOrLocale as string;
-      dictionary = localeOrDictionary as LocalizerDictionary;
-    }
-    const ns = namespace ?? LOCALIZER_ROOT_NAMESPACE;
-    const dicts = this.nsDictionaries.get(ns) || {};
-    dicts[locale] = dicts[locale] || {};
-    Object.assign(dicts[locale], dictionary);
-    this.nsDictionaries.set(ns, dicts);
-    this.detectLocale();
+  addDictionary(locale: string, dictionary: LocalizerDictionary) {
+    this.state.dictionaries[locale] = this.state.dictionaries[locale] ?? {};
+    assignDeep(this.state.dictionaries[locale], dictionary);
+    this.state.detectedLocale = undefined;
     return this;
   }
 
   /**
    * Определить подходящую локаль.
    *
-   * @param resetForcedLocale
+   * @param noResetLocale
    */
-  detectLocale(resetForcedLocale?: boolean): string {
+  detectLocale(noResetLocale?: boolean): string {
     const availableLocales = this.getAvailableLocales();
     let detected: string | undefined;
-    for (const source of this.options.detectionOrder) {
+    for (const source of this.state.detectionOrder) {
       detected = this.detectLocaleFromSource(availableLocales, source);
       if (detected) break;
     }
     // определяем финальную локаль с учетом fallback'а
     let finalLocale: string | undefined = detected;
-    const fallback = this.options.fallbackLocale;
+    const fallback = this.state.fallbackLocale;
     if (!finalLocale) {
       if (fallback && availableLocales.includes(fallback)) {
         finalLocale = fallback;
@@ -585,8 +338,8 @@ export class Localizer {
         finalLocale = fallback;
       }
     }
-    this.detectedLocale = finalLocale;
-    if (resetForcedLocale) this.resetForcedLocale();
+    this.state.detectedLocale = finalLocale;
+    if (!noResetLocale) this.resetLocale();
     return finalLocale;
   }
 
@@ -634,16 +387,17 @@ export class Localizer {
     let candidate: string | undefined;
     switch (source) {
       case DetectionSource.REQUEST_HEADER: {
-        if (!this.request) break;
-        const headerName = this.options.requestHeaderName.toLocaleLowerCase();
-        const headerValue = this.request.headers[headerName];
+        const httpRequest = this.getHttpRequest();
+        if (!httpRequest) break;
+        const headerName = this.state.requestHeaderName.toLocaleLowerCase();
+        const headerValue = httpRequest.headers[headerName];
         if (headerValue && typeof headerValue === 'string') {
           candidate = headerValue;
         }
         break;
       }
       case DetectionSource.URL_PATH: {
-        const index = this.options.urlPathIndex;
+        const index = this.state.urlPathIndex;
         const segments = window.location.pathname
           .replace(/^\/|\/$/g, '')
           .split('/');
@@ -652,13 +406,13 @@ export class Localizer {
         break;
       }
       case DetectionSource.QUERY: {
-        const key = this.options.queryStringKey ?? 'lang';
+        const key = this.state.queryStringKey;
         const params = new URLSearchParams(window.location.search);
         candidate = params.get(key) ?? undefined;
         break;
       }
       case DetectionSource.LOCAL_STORAGE: {
-        const key = this.options.localStorageKey ?? 'language';
+        const key = this.state.localStorageKey;
         candidate = window.localStorage.getItem(key) ?? undefined;
         break;
       }
@@ -698,32 +452,15 @@ export class Localizer {
    * @param args
    */
   t(key: string, ...args: unknown[]) {
-    const ns = this.getNamespace();
     const locale = this.getLocale();
-    const fallbackLocale = this.options.fallbackLocale;
-    // ns + locale
-    let dict = this.getDictionary(ns, locale);
+    const fallbackLocale = this.state.fallbackLocale;
+    let dict = this.state.dictionaries[locale] ?? {};
     let entry = dict[key];
     if (!entry) {
-      // ns + fallback
-      dict = this.getDictionary(ns, fallbackLocale);
+      dict = this.state.dictionaries[fallbackLocale] ?? {};
       entry = dict[key];
       if (!entry) {
-        if (LOCALIZER_ROOT_NAMESPACE !== ns) {
-          // root + locale
-          dict = this.getDictionary(locale);
-          entry = dict[key];
-          if (!entry) {
-            // root + fallback
-            dict = this.getDictionary(fallbackLocale);
-            entry = dict[key];
-            if (!entry) {
-              return this.format(key, ...args);
-            }
-          }
-        } else {
-          return this.format(key, ...args);
-        }
+        return this.format(key, ...args);
       }
     }
     if (typeof entry === 'string') return this.format(entry, ...args);
@@ -768,7 +505,7 @@ export class Localizer {
     let locale = this.getLocale();
     let entry = obj[locale];
     if (!entry) {
-      locale = this.options.fallbackLocale;
+      locale = this.state.fallbackLocale;
       entry = obj[locale];
     }
     if (entry == null) {

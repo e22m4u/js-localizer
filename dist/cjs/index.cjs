@@ -23,18 +23,17 @@ var index_exports = {};
 __export(index_exports, {
   BROWSER_LOCALE_SOURCES: () => BROWSER_LOCALE_SOURCES,
   DEFAULT_DETECTION_ORDER: () => DEFAULT_DETECTION_ORDER,
-  DEFAULT_FALLBACK_LOCALE: () => DEFAULT_FALLBACK_LOCALE,
-  DEFAULT_LOCALIZER_OPTIONS: () => DEFAULT_LOCALIZER_OPTIONS,
   DetectionSource: () => DetectionSource,
-  LOCALIZER_ROOT_NAMESPACE: () => LOCALIZER_ROOT_NAMESPACE,
+  LOCALIZER_INITIAL_STATE: () => LOCALIZER_INITIAL_STATE,
   Localizer: () => Localizer,
-  numWords: () => numWords,
-  removeEmptyKeys: () => removeEmptyKeys
+  numWords: () => numWords
 });
 module.exports = __toCommonJS(index_exports);
 
 // dist/esm/localizer.js
+var import_http = require("http");
 var import_js_format = require("@e22m4u/js-format");
+var import_js_service = require("@e22m4u/js-service");
 
 // dist/esm/utils/num-words.js
 function numWords(value, one, few, many) {
@@ -59,14 +58,34 @@ function numWords(value, one, few, many) {
 }
 __name(numWords, "numWords");
 
-// dist/esm/utils/remove-empty-keys.js
-function removeEmptyKeys(plainObject, removeWhen = (v) => v == null) {
-  return Object.fromEntries(Object.entries(plainObject).filter(([, value]) => !removeWhen(value)));
+// dist/esm/utils/assign-deep.js
+var isMergableObject = /* @__PURE__ */ __name((item) => {
+  return item !== null && typeof item === "object" && !Array.isArray(item);
+}, "isMergableObject");
+function assignDeep(target, ...sources) {
+  if (sources.length === 0) {
+    return target;
+  }
+  for (const source of sources) {
+    if (!isMergableObject(source)) {
+      continue;
+    }
+    for (const key of Reflect.ownKeys(source)) {
+      const targetValue = target[key];
+      const sourceValue = source[key];
+      if (isMergableObject(targetValue) && isMergableObject(sourceValue)) {
+        assignDeep(targetValue, sourceValue);
+      } else {
+        target[key] = sourceValue;
+      }
+    }
+  }
+  return target;
 }
-__name(removeEmptyKeys, "removeEmptyKeys");
+__name(assignDeep, "assignDeep");
 
 // dist/esm/localizer.js
-var LOCALIZER_ROOT_NAMESPACE = "$root";
+var import_js_service2 = require("@e22m4u/js-service");
 var DetectionSource = {
   REQUEST_HEADER: "requestHeader",
   URL_PATH: "urlPath",
@@ -92,87 +111,94 @@ var BROWSER_LOCALE_SOURCES = [
   DetectionSource.NAVIGATOR,
   DetectionSource.HTML_TAG
 ];
-var DEFAULT_FALLBACK_LOCALE = "en";
-var DEFAULT_LOCALIZER_OPTIONS = {
-  namespace: void 0,
+var LOCALIZER_INITIAL_STATE = {
   locales: [],
-  fallbackLocale: DEFAULT_FALLBACK_LOCALE,
+  fallbackLocale: "en",
+  detectedLocale: void 0,
+  forcedLocale: void 0,
   urlPathIndex: 0,
   queryStringKey: "lang",
   localStorageKey: "language",
   requestHeaderName: "accept-language",
-  detectionOrder: DEFAULT_DETECTION_ORDER
+  detectionOrder: DEFAULT_DETECTION_ORDER,
+  dictionaries: {},
+  httpRequest: void 0
 };
-var _Localizer = class _Localizer {
+var _Localizer = class _Localizer extends import_js_service.Service {
   /**
-   * Dictionaries by namespace.
+   * Localizer state.
    */
-  nsDictionaries = /* @__PURE__ */ new Map();
-  /**
-   * Localizer options.
-   */
-  options = structuredClone(DEFAULT_LOCALIZER_OPTIONS);
-  /**
-   * Detected locale.
-   */
-  detectedLocale;
-  /**
-   * Forced locale.
-   */
-  forcedLocale;
-  /**
-   * Request.
-   */
-  request;
+  state = structuredClone(LOCALIZER_INITIAL_STATE);
   /**
    * Constructor.
+   *
+   * @param containerOrOptions
+   * @param options
    */
-  constructor(options) {
+  constructor(containerOrOptions, options) {
+    if ((0, import_js_service2.isServiceContainer)(containerOrOptions)) {
+      super(containerOrOptions);
+    } else {
+      super();
+      options = containerOrOptions;
+    }
     if (options) {
-      const filteredOptions = removeEmptyKeys(options);
-      Object.assign(this.options, filteredOptions);
+      const optionsClone = structuredClone({
+        ...options,
+        httpRequest: void 0
+      });
+      optionsClone.httpRequest = options.httpRequest;
+      Object.assign(this.state, optionsClone);
     }
   }
   /**
-   * Получить пространство имен.
+   * Get state.
    */
-  getNamespace() {
-    return this.options.namespace;
+  getState() {
+    const state = structuredClone({
+      ...this.state,
+      httpRequest: void 0
+    });
+    state.httpRequest = this.state.httpRequest;
+    return state;
   }
   /**
-   * Set request.
+   * Get http request.
    */
-  setRequest(req) {
-    this.request = req;
-    this.detectLocale();
-    return this;
+  getHttpRequest() {
+    if (this.state.httpRequest) {
+      return this.state.httpRequest;
+    }
+    if (this.hasService(import_http.IncomingMessage)) {
+      return this.getService(import_http.IncomingMessage);
+    }
   }
   /**
    * Получить локаль.
    */
   getLocale() {
     var _a;
-    if (this.forcedLocale)
-      return this.forcedLocale;
-    if (this.detectedLocale)
-      return this.detectedLocale;
-    this.detectLocale();
-    return (_a = this.detectedLocale) != null ? _a : this.options.fallbackLocale;
-  }
-  /**
-   * Сбросить принудительную локаль.
-   */
-  resetForcedLocale() {
-    this.forcedLocale = void 0;
-    return this;
+    if (this.state.forcedLocale)
+      return this.state.forcedLocale;
+    if (this.state.detectedLocale)
+      return this.state.detectedLocale;
+    this.detectLocale(true);
+    return (_a = this.state.detectedLocale) != null ? _a : this.state.fallbackLocale;
   }
   /**
    * Установить локаль принудительно.
    *
    * @param locale
    */
-  forceLocale(locale) {
-    this.forcedLocale = locale;
+  setLocale(locale) {
+    this.state.forcedLocale = locale;
+    return this;
+  }
+  /**
+   * Сбросить принудительную локаль.
+   */
+  resetLocale() {
+    this.state.forcedLocale = void 0;
     return this;
   }
   /**
@@ -181,26 +207,18 @@ var _Localizer = class _Localizer {
    * @param options
    */
   clone(options) {
-    const newOptions = structuredClone(this.options);
-    if (options) {
-      const filteredOptions = removeEmptyKeys(options);
-      Object.assign(newOptions, filteredOptions);
-    }
-    const inst = new _Localizer(newOptions);
-    inst.nsDictionaries = structuredClone(this.nsDictionaries);
-    inst.detectedLocale = this.detectedLocale;
-    inst.forcedLocale = this.forcedLocale;
-    inst.request = this.request;
-    return inst;
+    const newState = this.getState();
+    Object.assign(newState, options);
+    return new _Localizer(this.container, newState);
   }
   /**
    * Клонирование экземпляра с новой локалью.
    *
    * @param locale
    */
-  cloneWithLocale(locale) {
+  withLocale(locale) {
     const inst = this.clone();
-    inst.forceLocale(locale);
+    inst.setLocale(locale);
     return inst;
   }
   /**
@@ -208,78 +226,42 @@ var _Localizer = class _Localizer {
    *
    * @param req
    */
-  cloneWithRequest(req) {
-    const inst = this.clone();
-    inst.request = req;
-    inst.detectLocale(true);
+  withHttpRequest(req) {
+    const inst = this.clone({ httpRequest: req, detectedLocale: void 0 });
     return inst;
-  }
-  /**
-   * Clone with namespace.
-   *
-   * @param namespace
-   */
-  cloneWithNamespace(namespace) {
-    return this.clone({ namespace });
   }
   /**
    * Получить доступные локали.
    */
   getAvailableLocales() {
-    const ns = this.getNamespace() || LOCALIZER_ROOT_NAMESPACE;
-    const nsDicts = this.nsDictionaries.get(ns);
-    const rootDicts = this.nsDictionaries.get(LOCALIZER_ROOT_NAMESPACE);
-    const locales = /* @__PURE__ */ new Set([
-      ...Object.keys(rootDicts || {}),
-      ...Object.keys(nsDicts || {})
-    ]);
+    const locales = new Set(Object.keys(this.state.dictionaries));
+    if (this.state.forcedLocale)
+      locales.add(this.state.forcedLocale);
     return Array.from(locales);
   }
   /**
    * Получить справочники.
-   *
-   * @param namespace
    */
-  getDictionaries(namespace) {
-    if (namespace) {
-      return this.nsDictionaries.get(namespace || "") || {};
-    }
-    return this.nsDictionaries.get(LOCALIZER_ROOT_NAMESPACE) || {};
+  getDictionaries() {
+    return structuredClone(this.state.dictionaries);
   }
   /**
    * Получить справочник.
    *
-   * @param namespace
    * @param locale
    */
-  getDictionary(namespaceOrLocale, locale) {
-    let namespace;
-    if (arguments.length === 2) {
-      namespace = namespaceOrLocale;
-      locale = locale;
-    } else {
-      locale = namespaceOrLocale;
-    }
-    const dicts = this.getDictionaries(namespace);
-    return dicts[locale] || {};
+  getDictionary(locale) {
+    const dicts = this.state.dictionaries;
+    return dicts[locale] ? structuredClone(dicts[locale]) : {};
   }
   /**
    * Установить справочники.
    *
-   * @param namespaceOrDictionaries
    * @param dictionaries
    */
-  setDictionaries(namespaceOrDictionaries, dictionaries) {
-    let namespace;
-    if (arguments.length === 2) {
-      namespace = namespaceOrDictionaries;
-      dictionaries = dictionaries;
-    } else {
-      dictionaries = namespaceOrDictionaries;
-    }
-    const ns = namespace != null ? namespace : LOCALIZER_ROOT_NAMESPACE;
-    this.nsDictionaries.set(ns, dictionaries);
-    this.detectLocale();
+  setDictionaries(dictionaries) {
+    this.state.dictionaries = dictionaries;
+    this.state.detectedLocale = void 0;
     return this;
   }
   /**
@@ -287,43 +269,20 @@ var _Localizer = class _Localizer {
    *
    * @param locale
    * @param dictionary
-   * @param namespace
    */
-  setDictionary(namespaceOrLocale, localeOrDictionary, dictionary) {
-    let namespace, locale;
-    if (arguments.length === 3) {
-      namespace = namespaceOrLocale;
-      locale = localeOrDictionary;
-      dictionary = dictionary;
-    } else {
-      locale = namespaceOrLocale;
-      dictionary = localeOrDictionary;
-    }
-    const ns = namespace != null ? namespace : LOCALIZER_ROOT_NAMESPACE;
-    const dicts = this.nsDictionaries.get(ns) || {};
-    dicts[locale] = dictionary;
-    this.nsDictionaries.set(ns, dicts);
-    this.detectLocale();
+  setDictionary(locale, dictionary) {
+    this.state.dictionaries[locale] = dictionary;
+    this.state.detectedLocale = void 0;
     return this;
   }
   /**
    * Добавить справочники.
    *
    * @param dictionaries
-   * @param namespace
    */
-  addDictionaries(namespaceOrDictionaries, dictionaries) {
-    let namespace;
-    if (arguments.length === 2) {
-      namespace = namespaceOrDictionaries;
-      dictionaries = dictionaries;
-    } else {
-      dictionaries = namespaceOrDictionaries;
-    }
-    Object.keys(dictionaries).forEach((locale) => {
-      this.addDictionary(namespace, locale, dictionaries[locale]);
-    });
-    this.detectLocale();
+  addDictionaries(dictionaries) {
+    assignDeep(this.state.dictionaries, dictionaries);
+    this.state.detectedLocale = void 0;
     return this;
   }
   /**
@@ -331,41 +290,29 @@ var _Localizer = class _Localizer {
    *
    * @param locale
    * @param dictionary
-   * @param namespace
    */
-  addDictionary(namespaceOrLocale, localeOrDictionary, dictionary) {
-    let namespace, locale;
-    if (arguments.length === 3) {
-      namespace = namespaceOrLocale;
-      locale = localeOrDictionary;
-      dictionary = dictionary;
-    } else {
-      locale = namespaceOrLocale;
-      dictionary = localeOrDictionary;
-    }
-    const ns = namespace != null ? namespace : LOCALIZER_ROOT_NAMESPACE;
-    const dicts = this.nsDictionaries.get(ns) || {};
-    dicts[locale] = dicts[locale] || {};
-    Object.assign(dicts[locale], dictionary);
-    this.nsDictionaries.set(ns, dicts);
-    this.detectLocale();
+  addDictionary(locale, dictionary) {
+    var _a;
+    this.state.dictionaries[locale] = (_a = this.state.dictionaries[locale]) != null ? _a : {};
+    assignDeep(this.state.dictionaries[locale], dictionary);
+    this.state.detectedLocale = void 0;
     return this;
   }
   /**
    * Определить подходящую локаль.
    *
-   * @param resetForcedLocale
+   * @param noResetLocale
    */
-  detectLocale(resetForcedLocale) {
+  detectLocale(noResetLocale) {
     const availableLocales = this.getAvailableLocales();
     let detected;
-    for (const source of this.options.detectionOrder) {
+    for (const source of this.state.detectionOrder) {
       detected = this.detectLocaleFromSource(availableLocales, source);
       if (detected)
         break;
     }
     let finalLocale = detected;
-    const fallback = this.options.fallbackLocale;
+    const fallback = this.state.fallbackLocale;
     if (!finalLocale) {
       if (fallback && availableLocales.includes(fallback)) {
         finalLocale = fallback;
@@ -375,9 +322,9 @@ var _Localizer = class _Localizer {
         finalLocale = fallback;
       }
     }
-    this.detectedLocale = finalLocale;
-    if (resetForcedLocale)
-      this.resetForcedLocale();
+    this.state.detectedLocale = finalLocale;
+    if (!noResetLocale)
+      this.resetLocale();
     return finalLocale;
   }
   /**
@@ -408,7 +355,7 @@ var _Localizer = class _Localizer {
    * @param options
    */
   detectLocaleFromSource(availableLocales, source) {
-    var _a, _b, _c, _d, _e, _f, _g;
+    var _a, _b, _c, _d, _e;
     if (typeof window === "undefined") {
       if (BROWSER_LOCALE_SOURCES.includes(source)) {
         return;
@@ -417,39 +364,40 @@ var _Localizer = class _Localizer {
     let candidate;
     switch (source) {
       case DetectionSource.REQUEST_HEADER: {
-        if (!this.request)
+        const httpRequest = this.getHttpRequest();
+        if (!httpRequest)
           break;
-        const headerName = this.options.requestHeaderName.toLocaleLowerCase();
-        const headerValue = this.request.headers[headerName];
+        const headerName = this.state.requestHeaderName.toLocaleLowerCase();
+        const headerValue = httpRequest.headers[headerName];
         if (headerValue && typeof headerValue === "string") {
           candidate = headerValue;
         }
         break;
       }
       case DetectionSource.URL_PATH: {
-        const index = this.options.urlPathIndex;
+        const index = this.state.urlPathIndex;
         const segments = window.location.pathname.replace(/^\/|\/$/g, "").split("/");
         if (segments.length > index && segments[index])
           candidate = segments[index];
         break;
       }
       case DetectionSource.QUERY: {
-        const key = (_a = this.options.queryStringKey) != null ? _a : "lang";
+        const key = this.state.queryStringKey;
         const params = new URLSearchParams(window.location.search);
-        candidate = (_b = params.get(key)) != null ? _b : void 0;
+        candidate = (_a = params.get(key)) != null ? _a : void 0;
         break;
       }
       case DetectionSource.LOCAL_STORAGE: {
-        const key = (_c = this.options.localStorageKey) != null ? _c : "language";
-        candidate = (_d = window.localStorage.getItem(key)) != null ? _d : void 0;
+        const key = this.state.localStorageKey;
+        candidate = (_b = window.localStorage.getItem(key)) != null ? _b : void 0;
         break;
       }
       case DetectionSource.HTML_TAG: {
-        candidate = (_e = document.documentElement.getAttribute("lang")) != null ? _e : void 0;
+        candidate = (_c = document.documentElement.getAttribute("lang")) != null ? _c : void 0;
         break;
       }
       case DetectionSource.NAVIGATOR: {
-        candidate = (_g = (_f = navigator.languages) == null ? void 0 : _f[0]) != null ? _g : void 0;
+        candidate = (_e = (_d = navigator.languages) == null ? void 0 : _d[0]) != null ? _e : void 0;
         break;
       }
       case DetectionSource.ENV: {
@@ -471,28 +419,16 @@ var _Localizer = class _Localizer {
    * @param args
    */
   t(key, ...args) {
-    const ns = this.getNamespace();
+    var _a, _b;
     const locale = this.getLocale();
-    const fallbackLocale = this.options.fallbackLocale;
-    let dict = this.getDictionary(ns, locale);
+    const fallbackLocale = this.state.fallbackLocale;
+    let dict = (_a = this.state.dictionaries[locale]) != null ? _a : {};
     let entry = dict[key];
     if (!entry) {
-      dict = this.getDictionary(ns, fallbackLocale);
+      dict = (_b = this.state.dictionaries[fallbackLocale]) != null ? _b : {};
       entry = dict[key];
       if (!entry) {
-        if (LOCALIZER_ROOT_NAMESPACE !== ns) {
-          dict = this.getDictionary(locale);
-          entry = dict[key];
-          if (!entry) {
-            dict = this.getDictionary(fallbackLocale);
-            entry = dict[key];
-            if (!entry) {
-              return this.format(key, ...args);
-            }
-          }
-        } else {
-          return this.format(key, ...args);
-        }
+        return this.format(key, ...args);
       }
     }
     if (typeof entry === "string")
@@ -539,7 +475,7 @@ var _Localizer = class _Localizer {
     let locale = this.getLocale();
     let entry = obj[locale];
     if (!entry) {
-      locale = this.options.fallbackLocale;
+      locale = this.state.fallbackLocale;
       entry = obj[locale];
     }
     if (entry == null) {
@@ -578,11 +514,8 @@ var Localizer = _Localizer;
 0 && (module.exports = {
   BROWSER_LOCALE_SOURCES,
   DEFAULT_DETECTION_ORDER,
-  DEFAULT_FALLBACK_LOCALE,
-  DEFAULT_LOCALIZER_OPTIONS,
   DetectionSource,
-  LOCALIZER_ROOT_NAMESPACE,
+  LOCALIZER_INITIAL_STATE,
   Localizer,
-  numWords,
-  removeEmptyKeys
+  numWords
 });

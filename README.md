@@ -1,24 +1,31 @@
 # @e22m4u/js-localizer
 
-Легковесный сервис локализации для JavaScript без глобальных состояний
-и блокирующих операций.
+Легковесный сервис локализации для JavaScript, спроектированный для работы
+без глобальных состояний и блокирующих операций.
 
 ## Особенности
 
 - **Минимум зависимостей**  
   Маленький размер и высокая производительность.
 - **Иммутабельность**  
-  Методы клонирования (`clone`, `cloneWithLocale`) позволяют безопасно
-  использовать один базовый экземпляр для создания множества изолированных.
+  Методы клонирования (`clone`, `withLocale`, `withHttpRequest`) позволяют
+  использовать базовый экземпляр для создания множества изолированных.
 - **Гибкая настройка**  
-  Контроль над процессом определения локали, словарями и резервными языками.
+  Полный контроль над процессом определения локали, словарями и резервными
+  языками.
 - **Автоматическое определение локали**  
-  Поддерживает определение из URL, query-параметров, `localStorage`,
-  `navigator`, HTML-тега и переменных окружения.
+  Поддерживает определение из HTTP-заголовков, URL, query-параметров,
+  `localStorage`, `navigator`, HTML-тега и переменных окружения.
 - **Поддержка плюрализации**  
-  Простая обработка множественных чисел (one, few, many).
+  Простая обработка множественных чисел для разных языков
+  (правила для `one`, `few`, `many`).
 - **Универсальность**  
-  Работает в браузере и на сервере (Node.js).
+  Работает как в браузере, так и на сервере (Node.js).
+- **Интеграция с Service Container**  
+  Может быть интегрирован с
+  [@e22m4u/js-service](https://www.npmjs.com/package/@e22m4u/js-service)
+  для удобного управления зависимостями. Например, для автоматического получения
+  объекта `IncomingMessage` на сервере.
 
 ## Содержание
 
@@ -30,8 +37,10 @@
   - [Иммутабельность и клонирование](#иммутабельность-и-клонирование)
   - [Использование на сервере (Node.js)](#использование-на-сервере-nodejs)
 - [Автоматическое определение локали](#автоматическое-определение-локали)
-- [Настройки (API)](#настройки-api)
-- [Методы экземпляра](#методы-экземпляра)
+- [Дополнительные утилиты](#дополнительные-утилиты)
+  - [numWords](#numwords)
+- [API: Настройки конструктора](#api-настройки-конструктора)
+- [API: Методы экземпляра](#api-методы-экземпляра)
 - [Тесты](#тесты)
 - [Лицензия](#лицензия)
 
@@ -41,36 +50,37 @@
 npm install @e22m4u/js-localizer
 ```
 
-Модуль поддерживает ESM и CommonJS стандарты.
+Модуль поддерживает ESM.
 
-**ESM**
 ```js
 import {Localizer} from '@e22m4u/js-localizer';
-```
-
-**CommonJS**
-```js
-const {Localizer} = require('@e22m4u/js-localizer');
 ```
 
 ## Быстрый старт
 
 Создание экземпляра, добавление словарей и выполнение перевода.
 
-```javascript
+```js
 import {Localizer} from '@e22m4u/js-localizer';
 
 // 1. Создание экземпляра и добавление словарей
 const localizer = new Localizer();
 
-localizer.addDictionary('ru', {
+// Можно добавлять словари по одному...
+localizer.setDictionary('ru', {
   hello: 'Привет!',
   helloName: 'Привет, %s!',
 });
 
-localizer.addDictionary('en', {
-  hello: 'Hello!',
-  helloName: 'Hello, %s!',
+// ...или несколько сразу
+localizer.addDictionaries({
+  en: {
+    hello: 'Hello!',
+    helloName: 'Hello, %s!',
+  },
+  de: {
+    hello: 'Hallo!',
+  },
 });
 
 // 2. Установка текущей локали
@@ -90,109 +100,123 @@ console.log(localizer.t('helloName', 'Oleg')); // > Hello, Oleg!
 
 ## Продвинутое использование
 
-- [Плюрализация (обработка множественных чисел)](#плюрализация-обработка-множественных-чисел)
-- [Перевод из объекта (метод `o`)](#перевод-из-объекта-метод-o)
-- [Иммутабельность и клонирование](#иммутабельность-и-клонирование)
-- [Использование на сервере (Node.js)](#использование-на-сервере-nodejs)
-
 ### Плюрализация (обработка множественных чисел)
 
-Для обработки форм множественного числа используется объект с ключами
-`one`, `few`, `many`.
+Для обработки форм множественного числа используется объект
+с ключами `one`, `few`, `many`.
 
-```javascript
-localizer.addDictionary('ru', {
+**Пример для русского языка (3 формы):**
+
+```js
+localizer.setDictionary('ru', {
   iHaveApples: {
-    one: 'У меня %d яблоко.',
-    few: 'У меня %d яблока.', // для чисел 2, 3, 4
-    many: 'У меня %d яблок.', // для 0, 5, 6...
+    one: 'У меня одно яблоко',
+    few: 'У меня %d яблока', // для чисел 2, 3, 4
+    many: 'У меня %d яблок', // для 0, 5, 6... и дробных
   },
 });
 
 localizer.setLocale('ru');
 
-localizer.t('iHaveApples', 1); // > У меня 1 яблоко.
-localizer.t('iHaveApples', 2); // > У меня 2 яблока.
-localizer.t('iHaveApples', 5); // > У меня 5 яблок.
+console.log(localizer.t('iHaveApples', 1)); // > У меня одно яблоко
+console.log(localizer.t('iHaveApples', 3)); // > У меня 3 яблока
+console.log(localizer.t('iHaveApples', 5)); // > У меня 5 яблок
 ```
 
-Англоязычный вариант с ключами `one` и `many` (без `few`).
+**Пример для английского языка (2 формы):**
 
 ```js
-localizer.addDictionary('en', {
+localizer.setDictionary('en', {
   iHaveApples: {
-    one: 'I have %d apple.',
-    many: 'I have %d apples.', // для 0, 2, 3...
+    one: 'I have apple',
+    many: 'I have %d apples', // для 0, 2, 3... и дробных
   },
 });
 
 localizer.setLocale('en');
 
-localizer.t('iHaveApples', 1); // > I have 1 apple.
-localizer.t('iHaveApples', 2); // > I have 2 apples.
-localizer.t('iHaveApples', 5); // > I have 5 apples.
+console.log(localizer.t('iHaveApples', 1));   // > I have apple
+console.log(localizer.t('iHaveApples', 0));   // > I have 0 apples
+console.log(localizer.t('iHaveApples', 10));  // > I have 10 apples
 ```
 
-### Перевод из объекта (метод `o()`)
+### Перевод из объекта (метод `o`)
 
-Метод `o()` удобен, когда переводы хранятся не в словарях, а в самом коде
-(например, в компоненте UI).
+Метод `o()` удобен, когда переводы хранятся не в глобальных словарях,
+а непосредственно в коде (например, в UI-компоненте).
 
-```javascript
-const localizer = new Localizer({defaultLocale: 'ru'});
-// Использование опции `defaultLocale` строго задает
-// текущую локаль, отключая автоматическое определение.
+```js
+const localizer = new Localizer();
+localizer.setLocale('ru');
 
 const title = {
   en: 'Hello!',
+  de: 'Hallo!',
   ru: 'Привет!',
 };
 
-localizer.o(title); // > Привет!
+console.log(localizer.o(title)); // > Привет!
+
+// Метод также поддерживает плюрализацию
+const counter = {
+  en: {one: '%d item', many: '%d items'},
+  ru: {one: '%d товар', few: '%d товара', many: '%d товаров'},
+};
+
+console.log(localizer.o(counter, 5)); // > 5 товаров
 ```
 
-Если перевод для текущей или `fallback` локали отсутствует, будет возвращён
+Если перевод для текущей локали отсутствует, будет использована резервная
+локаль (`fallbackLocale`), а если и она недоступна, то будет возвращён
 перевод для первого найденного языка в объекте.
 
 ### Иммутабельность и клонирование
 
-`Localizer` спроектирован так, чтобы быть иммутабельным. Вместо изменения
-текущего экземпляра вы можете создавать его клоны. Это особенно полезно
-в серверной среде, где для каждого запроса нужен свой изолированный экземпляр.
+`Localizer` спроектирован так, чтобы его состояние было предсказуемым.
+Вместо изменения текущего экземпляра вы можете создавать его клоны.
+Это особенно полезно в серверной среде, где для каждого запроса нужен
+свой изолированный экземпляр.
 
-```javascript
-import en from './locales/en.json';
-import ru from './locales/ru.json';
-
+```js
 // Базовый экземпляр со всеми словарями
-const baseLocalizer = new Localizer({dictionaries: {en, ru}});
+const baseLocalizer = new Localizer({
+  dictionaries: {
+    en: {greetings: 'Hello!'},
+    ru: {greetings: 'Привет!'},
+  },
+});
 
 // Клон для русскоговорящего пользователя
-const ruLocalizer = baseLocalizer.cloneWithLocale('ru');
-ruLocalizer.t('greetings'); // > Привет!
+const ruLocalizer = baseLocalizer.withLocale('ru');
+console.log(ruLocalizer.t('greetings')); // > Привет!
 
 // Клон для англоговорящего пользователя
-const enLocalizer = baseLocalizer.cloneWithLocale('en');
-enLocalizer.t('greetings'); // > Hello!
+const enLocalizer = baseLocalizer.withLocale('en');
+console.log(enLocalizer.t('greetings')); // > Hello!
+
+// Исходный экземпляр не изменился
+console.log(baseLocalizer.getLocale()); // > en (fallback по умолчанию)
 ```
 
 ### Использование на сервере (Node.js)
 
-Метод `cloneWithLocaleFromRequest()` предназначен для автоматического
-определения языка из заголовков HTTP-запроса (например, `Accept-Language`).
+Метод `withHttpRequest()` предназначен для создания клона `Localizer`,
+который будет использовать HTTP-запрос для автоматического определения
+языка (например, из заголовка `Accept-Language`).
 
-```javascript
-// пример для Express.js
+```js
+// Пример для Express.js
 // const baseLocalizer = new Localizer({...});
 
 function middleware(req, res, next) {
   // Создание изолированной копии для текущего запроса
-  req.localizer = baseLocalizer.cloneWithLocaleFromRequest(req);
+  req.localizer = baseLocalizer.withHttpRequest(req);
   next();
 }
 
 app.get('/', (req, res) => {
-  // req.localizer уже настроен на нужный язык
+  // req.localizer уже настроен на нужный язык,
+  // определенный из заголовков запроса
   const greeting = req.localizer.t('greetings');
   res.send(greeting);
 });
@@ -200,113 +224,71 @@ app.get('/', (req, res) => {
 
 ## Автоматическое определение локали
 
-Если локаль не установлена явно через `setLocale()` или `cloneWithLocale()`,
-то `Localizer` попытается определить её автоматически при первом вызове
-`getLocale()` или `t()`.
+Если локаль не установлена явно через `setLocale()` или `withLocale()`,
+то `Localizer` попытается определить её автоматически при первом
+вызове `getLocale()` или `t()`.
 
-Порядок определения задаётся опцией `detectionOrder` и по умолчанию выглядит
-так:
+Порядок определения задаётся опцией `detectionOrder` и по умолчанию
+выглядит так:
 
-```json
+```js
 [
-  "urlPath",
-  "query",
-  "localStorage",
-  "htmlTag",
-  "navigator",
-  "env"
+  'requestHeader', // Заголовок HTTP (Node.js)
+  'urlPath',       // Сегмент URL
+  'query',         // Query-параметр
+  'localStorage',  // Локальное хранилище
+  'htmlTag',       // Атрибут <html lang="">
+  'navigator',     // Настройки браузера
+  'env'            // Переменные окружения (Node.js)
 ]
 ```
 
 Ниже подробно описан каждый источник.
 
-### Из URL-адреса
+#### `requestHeader` (только Node.js)
+Локаль определяется из HTTP-заголовка запроса.
+По умолчанию используется заголовок `accept-language`.
 
-Библиотека может извлечь локаль из сегмента пути URL.  
+- **Опция:** `requestHeaderName`  
+  (имя заголовка, по умолчанию `'accept-language'`)
+
+#### `urlPath` (только браузер)
+
+Библиотека может извлечь локаль из сегмента пути URL.
 По умолчанию используется нулевой сегмент (`/ru/products`).
 
-```javascript
-// Для URL https://example.com/ru/products
-window.location.pathname = '/ru/products';
+- **Опция:** `urlPathIndex`  
+  (индекс сегмента, по умолчанию `0`)
 
-const localizer = new Localizer({ dictionaries: { en, ru } });
-localizer.t('greetings'); // > Привет!
-```
+#### `query` (только браузер)
 
-*Настроить индекс сегмента можно через опцию `urlPathIndex`.*
-
-### Из query-параметра
-
-Локаль может быть передана в параметрах запроса URL.  
+Локаль может быть передана в параметрах запроса URL.
 По умолчанию используется ключ `lang`.
 
-```javascript
-// Для URL https://example.com/products?lang=ru
-window.location.search = '?lang=ru';
+- **Опция:** `queryStringKey`  
+  (имя параметра, по умолчанию `'lang'`)
 
-const localizer = new Localizer({ dictionaries: { en, ru } });
-localizer.t('greetings'); // > Привет!
-```
+#### `localStorage` (только браузер)
 
-*Ключ параметра можно изменить опцией `queryStringKey`.*
-
-### Из локального хранилища
-
-Отличный способ сохранить выбор языка пользователя между сессиями.  
+Отличный способ сохранить выбор языка пользователя между сессиями.
 По умолчанию используется ключ `language`.
 
-```javascript
-// Пользователь ранее выбрал язык на сайте
-window.localStorage.setItem('language', 'ru');
+- **Опция:** `localStorageKey`  
+  (ключ в хранилище, по умолчанию `'language'`)
 
-const localizer = new Localizer({dictionaries: {en, ru}});
-localizer.t('greetings'); // > Привет!
-```
+#### `htmlTag` (только браузер)
 
-*Ключ можно изменить опцией `localStorageKey`.*
+Локаль считывается из атрибута `lang` корневого элемента `<html>`.
 
-### Из HTML-тега
-
-Локаль считывается из атрибута `lang` корневого элемента `<html>`.  
-Данный атрибут часто используется для SEO.
-
-```html
-<!DOCTYPE html>
-<html lang="ru-RU">
-  <!-- ... -->
-</html>
-```
-
-```javascript
-// На странице с <html lang="ru-RU">
-const localizer = new Localizer({dictionaries: {en, ru}});
-localizer.t('greetings'); // > Привет!
-```
-
-### Из настроек браузера
+#### `navigator` (только браузер)
 
 Модуль использует `navigator.languages[0]`, чтобы определить предпочитаемый
 язык пользователя, установленный в его браузере или ОС.
 
-```javascript
-// Имитация настроек браузера
-// (в реальности это свойство только для чтения)
-Object.defineProperty(window, 'navigator', {
-  value: {languages: ["ru-RU", "en-US"]},
-  writable: true,
-});
+#### `env` (только Node.js)
 
-const localizer = new Localizer({dictionaries: {en, ru}});
-localizer.t('greetings'); // > Привет!
-```
-
-### Из переменных окружения
-
-Этот метод работает **только на стороне сервера (Node.js)**. Он полезен для
-скриптов, утилит командной строки или серверного рендеринга (SSR), где нужно
-учитывать системную локаль.
-
-Проверка переменных окружения выполняется в следующем порядке:
+Этот метод полезен для скриптов, утилит командной строки или серверного
+рендеринга (SSR). Проверка переменных окружения выполняется в следующем порядке:
 
 1. `LANG`
 2. `LANGUAGE`
@@ -316,41 +298,32 @@ localizer.t('greetings'); // > Привет!
 Модуль автоматически извлекает код языка из строк формата `ru_RU.UTF-8`,
 оставляя `ru_RU`, и затем подбирая подходящую локаль (`ru`).
 
-**Пример использования в терминале:**
+## Дополнительные утилиты
 
-```bash
-# Установка переменной окружения и запуск скрипта
-export LANG=ru_RU.UTF-8
-node my-script.js
+Библиотека также экспортирует некоторые полезные функции.
+
+### numWords
+
+Функция для выбора правильной формы слова в зависимости от числа.
+Она используется внутри `Localizer`, но может быть полезна и сама по себе.
+
+```js
+import {numWords} from '@e22m4u/js-localizer';
+
+// Для русского языка (3 формы: one, few, many)
+numWords(1, 'товар', 'товара', 'товаров');  // > 'товар'
+numWords(2, 'товар', 'товара', 'товаров');  // > 'товара'
+numWords(5, 'товар', 'товара', 'товаров');  // > 'товаров'
+
+// Для английского языка (2 формы: one, few/many)
+numWords(1, 'item', 'items'); // > 'item'
+numWords(5, 'item', 'items'); // > 'items'
+numWords(0, 'item', 'items'); // > 'items'
 ```
 
-```javascript
-// Содержимое my-script.js
-import en from './locales/en.json';
-import ru from './locales/ru.json';
-import {Localizer} from '@e22m4u/js-localizer';
-
-const localizer = new Localizer({ dictionaries: { en, ru } });
-
-// Localizer автоматически читает `process.env.LANG`
-// и определяет локаль 'ru'
-console.log(localizer.t('greetings')); // > Привет!
-```
-
----
-
-## Настройки (API)
+## API: Настройки конструктора
 
 Настройки передаются в конструктор `new Localizer(options)`.
-
-- `locales: string[]`  
-  Список поддерживаемых локалей. Если не указан, список будет сформирован
-  из ключей `dictionaries`.  
-  *По умолчанию:* `[]`
-
-- `defaultLocale: string | undefined`  
-  Локаль, которая будет установлена по умолчанию при создании экземпляра.  
-  *По умолчанию:* `undefined`
 
 - `fallbackLocale: string`  
   Резервная локаль. Используется, если перевод для текущей локали не найден
@@ -358,12 +331,13 @@ console.log(localizer.t('greetings')); // > Привет!
   *По умолчанию:* `'en'`
 
 - `dictionaries: LocalizerDictionaries`  
-  Объект со словарями, где ключ — это локаль.  
+  Объект со словарями, где ключ - это локаль.  
   *По умолчанию:* `{}`
 
 - `detectionOrder: DetectionSource[]`  
-  Массив, определяющий порядок источников для автоматического определения локали.  
-  *По умолчанию:* `['urlPath', 'query', 'localStorage', 'htmlTag', 'navigator', 'env']`
+  Массив, определяющий порядок источников для автоматического определения
+  локали.  
+  *По умолчанию:* `['requestHeader', 'urlPath', 'query', 'localStorage', 'htmlTag', 'navigator', 'env']`
 
 - `urlPathIndex: number`  
   Индекс сегмента URL, в котором находится локаль (например, для `/en/users`
@@ -378,41 +352,96 @@ console.log(localizer.t('greetings')); // > Привет!
   Ключ в `localStorage` для хранения локали.  
   *По умолчанию:* `'language'`
 
-- `requestHeaderKey: string`  
+- `requestHeaderName: string`  
   Имя HTTP-заголовка для определения локали на сервере.  
   *По умолчанию:* `'accept-language'`
 
-## Методы экземпляра
+- `httpRequest: IncomingMessage`  
+  (Node.js) Объект HTTP-запроса для использования в качестве источника локали.
 
-- `setLocale(locale: string): this`  
-  Явно устанавливает текущую локаль.
+- `forcedLocale: string`  
+  Принудительно установить локаль, игнорируя автоматическое определение.
+  Эквивалентно вызову `.setLocale()` после создания.
+
+- `detectedLocale: string`  
+  Предустановленное значение для определенной локали. Полезно для избежания
+  повторного определения, например при гидратации на клиенте.
+
+## API: Методы экземпляра
+
+#### Управление локалью
 
 - `getLocale(): string`  
   Возвращает текущую локаль. Если она не была установлена, запускает механизм
   автоматического определения.
 
+- `setLocale(locale: string): this`  
+  Явно устанавливает текущую локаль. Это значение будет иметь приоритет
+  над автоматически определённой локалью.
+
+- `resetLocale(): this`  
+  Сбрасывает принудительно установленную локаль, возвращаясь к использованию
+  автоматически определённой или резервной.
+
+- `detectLocale(noResetLocale?: boolean): string`  
+  Запускает процесс автоматического определения локали и возвращает результат.
+  По умолчанию сбрасывает принудительно установленную локаль.
+
+#### Управление словарями
+
+- `setDictionaries(dictionaries: object): this`  
+  Полностью **заменяет** все существующие словари новыми.
+
+- `addDictionaries(dictionaries: object): this`  
+  **Дополняет** существующие словари, глубоко сливая новые данные со старыми.
+
+- `setDictionary(locale: string, dictionary: object): this`  
+  **Заменяет** словарь для одной указанной локали.
+
 - `addDictionary(locale: string, dictionary: object): this`  
-  Добавляет или заменяет словарь для указанной локали.
+  **Дополняет** словарь для одной указанной локали, глубоко сливая данные.
+
+- `getDictionaries(): object`  
+  Возвращает глубокую копию всех словарей.
+
+- `getDictionary(locale: string): object`  
+  Возвращает глубокую копию словаря для указанной локали.
+
+- `getAvailableLocales(): string[]`  
+  Возвращает массив всех доступных локалей из словарей.
+
+#### Перевод
 
 - `t(key: string, ...args: unknown[]): string`  
-  Возвращает переведённую и отформатированную строку по ключу.
+  Возвращает переведённую и отформатированную строку по ключу из словаря.
 
 - `o(obj: object, ...args: unknown[]): string`  
-  Извлекает и форматирует перевод из объекта для текущей локали.
+  Извлекает и форматирует перевод из переданного объекта для текущей локали.
 
-- `clone(): Localizer`  
+#### Клонирование
+
+- `clone(options?: LocalizerOptions): Localizer`  
   Создаёт полную, независимую копию экземпляра с текущим состоянием.
+  Можно передать новые опции для переопределения.
 
-- `cloneWithLocale(locale: string): Localizer`  
-  Создаёт клон с установленной новой локалью.
+- `withLocale(locale: string): Localizer`  
+  Создаёт клон с принудительно установленной новой локалью.
 
-- `cloneWithLocaleFromRequest(req: IncomingMessage): Localizer`  
-  (Node.js) Создаёт клон с локалью, определённой из заголовков HTTP-запроса.
+- `withHttpRequest(req: IncomingMessage): Localizer`  
+  (Node.js) Создаёт клон с привязанным HTTP-запросом для определения локали.
+
+#### Прочее
+
+- `getState(): LocalizerState`  
+  Возвращает глубокую копию текущего состояния (настроек) экземпляра.
+
+- `getHttpRequest(): IncomingMessage | undefined`  
+  Возвращает объект HTTP-запроса, если он был предоставлен.
 
 ## Тесты
 
 ```bash
-npm run test
+npm test
 ```
 
 ## Лицензия

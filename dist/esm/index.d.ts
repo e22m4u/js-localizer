@@ -1,2 +1,2 @@
 export * from './localizer.js';
-export * from './utils/index.js';
+export { numWords } from './utils/index.js';

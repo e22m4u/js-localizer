@@ -1,10 +1,9 @@
+import { IncomingMessage } from 'http';
 import { format } from '@e22m4u/js-format';
+import { Service } from '@e22m4u/js-service';
+import { assignDeep } from './utils/index.js';
 import { numWords } from './utils/num-words.js';
-import { removeEmptyKeys } from './utils/index.js';
-/**
- * Default localizer namespace.
- */
-export const LOCALIZER_ROOT_NAMESPACE = '$root';
+import { isServiceContainer } from '@e22m4u/js-service';
 /**
  * Detection source.
  */
@@ -40,95 +39,99 @@ export const BROWSER_LOCALE_SOURCES = [
     DetectionSource.HTML_TAG,
 ];
 /**
- * Default fallback locale.
+ * Localizer initial state.
  */
-export const DEFAULT_FALLBACK_LOCALE = 'en';
-/**
- * Default localizer options.
- */
-export const DEFAULT_LOCALIZER_OPTIONS = {
-    namespace: undefined,
+export const LOCALIZER_INITIAL_STATE = {
     locales: [],
-    fallbackLocale: DEFAULT_FALLBACK_LOCALE,
+    fallbackLocale: 'en',
+    detectedLocale: undefined,
+    forcedLocale: undefined,
     urlPathIndex: 0,
     queryStringKey: 'lang',
     localStorageKey: 'language',
     requestHeaderName: 'accept-language',
     detectionOrder: DEFAULT_DETECTION_ORDER,
+    dictionaries: {},
+    httpRequest: undefined,
 };
 /**
  * Localizer.
  */
-export class Localizer {
+export class Localizer extends Service {
     /**
-     * Dictionaries by namespace.
+     * Localizer state.
      */
-    nsDictionaries = new Map();
-    /**
-     * Localizer options.
-     */
-    options = structuredClone(DEFAULT_LOCALIZER_OPTIONS);
-    /**
-     * Detected locale.
-     */
-    detectedLocale;
-    /**
-     * Forced locale.
-     */
-    forcedLocale;
-    /**
-     * Request.
-     */
-    request;
+    state = structuredClone(LOCALIZER_INITIAL_STATE);
     /**
      * Constructor.
+     *
+     * @param containerOrOptions
+     * @param options
      */
-    constructor(options) {
-        // установка опций имеющих не пустые значения
+    constructor(containerOrOptions, options) {
+        if (isServiceContainer(containerOrOptions)) {
+            super(containerOrOptions);
+        }
+        else {
+            super();
+            options = containerOrOptions;
+        }
         if (options) {
-            const filteredOptions = removeEmptyKeys(options);
-            Object.assign(this.options, filteredOptions);
+            const optionsClone = structuredClone({
+                ...options,
+                httpRequest: undefined,
+            });
+            optionsClone.httpRequest = options.httpRequest;
+            Object.assign(this.state, optionsClone);
         }
     }
     /**
-     * Получить пространство имен.
+     * Get state.
      */
-    getNamespace() {
-        return this.options.namespace;
+    getState() {
+        const state = structuredClone({
+            ...this.state,
+            httpRequest: undefined,
+        });
+        state.httpRequest = this.state.httpRequest;
+        return state;
     }
     /**
-     * Set request.
+     * Get http request.
      */
-    setRequest(req) {
-        this.request = req;
-        this.detectLocale();
-        return this;
+    getHttpRequest() {
+        if (this.state.httpRequest) {
+            return this.state.httpRequest;
+        }
+        if (this.hasService(IncomingMessage)) {
+            return this.getService(IncomingMessage);
+        }
     }
     /**
      * Получить локаль.
      */
     getLocale() {
-        if (this.forcedLocale)
-            return this.forcedLocale;
-        if (this.detectedLocale)
-            return this.detectedLocale;
-        this.detectLocale();
-        return this.detectedLocale ?? this.options.fallbackLocale;
-    }
-    /**
-     * Сбросить принудительную локаль.
-     */
-    resetForcedLocale() {
-        this.forcedLocale = undefined;
-        return this;
+        if (this.state.forcedLocale)
+            return this.state.forcedLocale;
+        if (this.state.detectedLocale)
+            return this.state.detectedLocale;
+        this.detectLocale(true);
+        return this.state.detectedLocale ?? this.state.fallbackLocale;
     }
     /**
      * Установить локаль принудительно.
      *
      * @param locale
      */
-    forceLocale(locale) {
-        this.forcedLocale = locale;
+    setLocale(locale) {
+        this.state.forcedLocale = locale;
+        return this;
+    }
+    /**
+     * Сбросить принудительную локаль.
+     */
+    resetLocale() {
+        this.state.forcedLocale = undefined;
         return this;
     }
     /**
@@ -137,26 +140,18 @@ export class Localizer {
      * @param options
      */
     clone(options) {
-        const newOptions = structuredClone(this.options);
-        if (options) {
-            const filteredOptions = removeEmptyKeys(options);
-            Object.assign(newOptions, filteredOptions);
-        }
-        const inst = new Localizer(newOptions);
-        inst.nsDictionaries = structuredClone(this.nsDictionaries);
-        inst.detectedLocale = this.detectedLocale;
-        inst.forcedLocale = this.forcedLocale;
-        inst.request = this.request;
-        return inst;
+        const newState = this.getState();
+        Object.assign(newState, options);
+        return new Localizer(this.container, newState);
     }
     /**
      * Клонирование экземпляра с новой локалью.
      *
      * @param locale
      */
-    cloneWithLocale(locale) {
+    withLocale(locale) {
         const inst = this.clone();
-        inst.forceLocale(locale);
+        inst.setLocale(locale);
         return inst;
     }
     /**
@@ -164,80 +159,42 @@ export class Localizer {
      *
      * @param req
      */
-    cloneWithRequest(req) {
-        const inst = this.clone();
-        inst.request = req;
-        inst.detectLocale(true);
+    withHttpRequest(req) {
+        const inst = this.clone({ httpRequest: req, detectedLocale: undefined });
         return inst;
-    }
-    /**
-     * Clone with namespace.
-     *
-     * @param namespace
-     */
-    cloneWithNamespace(namespace) {
-        return this.clone({ namespace });
     }
     /**
      * Получить доступные локали.
      */
     getAvailableLocales() {
-        const ns = this.getNamespace() || LOCALIZER_ROOT_NAMESPACE;
-        const nsDicts = this.nsDictionaries.get(ns);
-        const rootDicts = this.nsDictionaries.get(LOCALIZER_ROOT_NAMESPACE);
-        const locales = new Set([
-            ...Object.keys(rootDicts || {}),
-            ...Object.keys(nsDicts || {}),
-        ]);
+        const locales = new Set(Object.keys(this.state.dictionaries));
+        if (this.state.forcedLocale)
+            locales.add(this.state.forcedLocale);
         return Array.from(locales);
     }
     /**
      * Получить справочники.
-     *
-     * @param namespace
      */
-    getDictionaries(namespace) {
-        if (namespace) {
-            return this.nsDictionaries.get(namespace || '') || {};
-        }
-        return this.nsDictionaries.get(LOCALIZER_ROOT_NAMESPACE) || {};
+    getDictionaries() {
+        return structuredClone(this.state.dictionaries);
     }
     /**
      * Получить справочник.
      *
-     * @param namespace
      * @param locale
      */
-    getDictionary(namespaceOrLocale, locale) {
-        let namespace;
-        if (arguments.length === 2) {
-            namespace = namespaceOrLocale;
-            locale = locale;
-        }
-        else {
-            locale = namespaceOrLocale;
-        }
-        const dicts = this.getDictionaries(namespace);
-        return dicts[locale] || {};
+    getDictionary(locale) {
+        const dicts = this.state.dictionaries;
+        return dicts[locale] ? structuredClone(dicts[locale]) : {};
     }
     /**
      * Установить справочники.
      *
-     * @param namespaceOrDictionaries
      * @param dictionaries
      */
-    setDictionaries(namespaceOrDictionaries, dictionaries) {
-        let namespace;
-        if (arguments.length === 2) {
-            namespace = namespaceOrDictionaries;
-            dictionaries = dictionaries;
-        }
-        else {
-            dictionaries = namespaceOrDictionaries;
-        }
-        const ns = namespace ?? LOCALIZER_ROOT_NAMESPACE;
-        this.nsDictionaries.set(ns, dictionaries);
-        this.detectLocale();
+    setDictionaries(dictionaries) {
+        this.state.dictionaries = dictionaries;
+        this.state.detectedLocale = undefined;
         return this;
     }
     /**
@@ -245,45 +202,20 @@ export class Localizer {
      *
      * @param locale
      * @param dictionary
-     * @param namespace
      */
-    setDictionary(namespaceOrLocale, localeOrDictionary, dictionary) {
-        let namespace, locale;
-        if (arguments.length === 3) {
-            namespace = namespaceOrLocale;
-            locale = localeOrDictionary;
-            dictionary = dictionary;
-        }
-        else {
-            locale = namespaceOrLocale;
-            dictionary = localeOrDictionary;
-        }
-        const ns = namespace ?? LOCALIZER_ROOT_NAMESPACE;
-        const dicts = this.nsDictionaries.get(ns) || {};
-        dicts[locale] = dictionary;
-        this.nsDictionaries.set(ns, dicts);
-        this.detectLocale();
+    setDictionary(locale, dictionary) {
+        this.state.dictionaries[locale] = dictionary;
+        this.state.detectedLocale = undefined;
         return this;
     }
     /**
      * Добавить справочники.
      *
      * @param dictionaries
-     * @param namespace
      */
-    addDictionaries(namespaceOrDictionaries, dictionaries) {
-        let namespace;
-        if (arguments.length === 2) {
-            namespace = namespaceOrDictionaries;
-            dictionaries = dictionaries;
-        }
-        else {
-            dictionaries = namespaceOrDictionaries;
-        }
-        Object.keys(dictionaries).forEach(locale => {
-            this.addDictionary(namespace, locale, dictionaries[locale]);
-        });
-        this.detectLocale();
+    addDictionaries(dictionaries) {
+        assignDeep(this.state.dictionaries, dictionaries);
+        this.state.detectedLocale = undefined;
         return this;
     }
     /**
@@ -291,43 +223,29 @@ export class Localizer {
      *
      * @param locale
      * @param dictionary
-     * @param namespace
      */
-    addDictionary(namespaceOrLocale, localeOrDictionary, dictionary) {
-        let namespace, locale;
-        if (arguments.length === 3) {
-            namespace = namespaceOrLocale;
-            locale = localeOrDictionary;
-            dictionary = dictionary;
-        }
-        else {
-            locale = namespaceOrLocale;
-            dictionary = localeOrDictionary;
-        }
-        const ns = namespace ?? LOCALIZER_ROOT_NAMESPACE;
-        const dicts = this.nsDictionaries.get(ns) || {};
-        dicts[locale] = dicts[locale] || {};
-        Object.assign(dicts[locale], dictionary);
-        this.nsDictionaries.set(ns, dicts);
-        this.detectLocale();
+    addDictionary(locale, dictionary) {
+        this.state.dictionaries[locale] = this.state.dictionaries[locale] ?? {};
+        assignDeep(this.state.dictionaries[locale], dictionary);
+        this.state.detectedLocale = undefined;
         return this;
     }
     /**
      * Определить подходящую локаль.
      *
-     * @param resetForcedLocale
+     * @param noResetLocale
      */
-    detectLocale(resetForcedLocale) {
+    detectLocale(noResetLocale) {
         const availableLocales = this.getAvailableLocales();
         let detected;
-        for (const source of this.options.detectionOrder) {
+        for (const source of this.state.detectionOrder) {
             detected = this.detectLocaleFromSource(availableLocales, source);
             if (detected)
                 break;
         }
         // определяем финальную локаль с учетом fallback'а
         let finalLocale = detected;
-        const fallback = this.options.fallbackLocale;
+        const fallback = this.state.fallbackLocale;
         if (!finalLocale) {
             if (fallback && availableLocales.includes(fallback)) {
                 finalLocale = fallback;
@@ -340,9 +258,9 @@ export class Localizer {
                 finalLocale = fallback;
             }
         }
-        this.detectedLocale = finalLocale;
-        if (resetForcedLocale)
-            this.resetForcedLocale();
+        this.state.detectedLocale = finalLocale;
+        if (!noResetLocale)
+            this.resetLocale();
         return finalLocale;
     }
     /**
@@ -383,17 +301,18 @@ export class Localizer {
         let candidate;
         switch (source) {
             case DetectionSource.REQUEST_HEADER: {
-                if (!this.request)
+                const httpRequest = this.getHttpRequest();
+                if (!httpRequest)
                     break;
-                const headerName = this.options.requestHeaderName.toLocaleLowerCase();
-                const headerValue = this.request.headers[headerName];
+                const headerName = this.state.requestHeaderName.toLocaleLowerCase();
+                const headerValue = httpRequest.headers[headerName];
                 if (headerValue && typeof headerValue === 'string') {
                     candidate = headerValue;
                 }
                 break;
             }
             case DetectionSource.URL_PATH: {
-                const index = this.options.urlPathIndex;
+                const index = this.state.urlPathIndex;
                 const segments = window.location.pathname
                     .replace(/^\/|\/$/g, '')
                     .split('/');
@@ -402,13 +321,13 @@ export class Localizer {
                 break;
             }
             case DetectionSource.QUERY: {
-                const key = this.options.queryStringKey ?? 'lang';
+                const key = this.state.queryStringKey;
                 const params = new URLSearchParams(window.location.search);
                 candidate = params.get(key) ?? undefined;
                 break;
             }
             case DetectionSource.LOCAL_STORAGE: {
-                const key = this.options.localStorageKey ?? 'language';
+                const key = this.state.localStorageKey;
                 candidate = window.localStorage.getItem(key) ?? undefined;
                 break;
             }
@@ -445,33 +364,15 @@ export class Localizer {
      * @param args
      */
     t(key, ...args) {
-        const ns = this.getNamespace();
         const locale = this.getLocale();
-        const fallbackLocale = this.options.fallbackLocale;
-        // ns + locale
-        let dict = this.getDictionary(ns, locale);
+        const fallbackLocale = this.state.fallbackLocale;
+        let dict = this.state.dictionaries[locale] ?? {};
         let entry = dict[key];
         if (!entry) {
-            // ns + fallback
-            dict = this.getDictionary(ns, fallbackLocale);
+            dict = this.state.dictionaries[fallbackLocale] ?? {};
             entry = dict[key];
             if (!entry) {
-                if (LOCALIZER_ROOT_NAMESPACE !== ns) {
-                    // root + locale
-                    dict = this.getDictionary(locale);
-                    entry = dict[key];
-                    if (!entry) {
-                        // root + fallback
-                        dict = this.getDictionary(fallbackLocale);
-                        entry = dict[key];
-                        if (!entry) {
-                            return this.format(key, ...args);
-                        }
-                    }
-                }
-                else {
-                    return this.format(key, ...args);
-                }
+                return this.format(key, ...args);
             }
         }
         if (typeof entry === 'string')
@@ -517,7 +418,7 @@ export class Localizer {
         let locale = this.getLocale();
         let entry = obj[locale];
         if (!entry) {
-            locale = this.options.fallbackLocale;
+            locale = this.state.fallbackLocale;
             entry = obj[locale];
         }
         if (entry == null) {
