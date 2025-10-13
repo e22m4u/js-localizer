@@ -153,11 +153,13 @@ describe('Localizer', function () {
       const options = {
         fallbackLocale: 'fr',
         queryStringKey: 'langue',
+        supportedLocales: ['fr', 'de'],
       };
       const localizer = new Localizer(options);
       const state = localizer.getState();
       expect(state.fallbackLocale).to.be.eq('fr');
       expect(state.queryStringKey).to.be.eq('langue');
+      expect(state.supportedLocales).to.have.members(['fr', 'de']);
       expect(state.localStorageKey).to.be.eq(
         LOCALIZER_INITIAL_STATE.localStorageKey,
       );
@@ -325,14 +327,40 @@ describe('Localizer', function () {
       );
     });
 
-    it('should include the forced locale even if it is not in the dictionaries', function () {
-      const localizer = new Localizer();
-      localizer.setDictionaries({en: {}});
-      localizer.setLocale('fr');
-      expect(localizer.getAvailableLocales()).to.have.members(['en', 'fr']);
+    it('should include locales from the supportedLocales option', function () {
+      const localizer = new Localizer({
+        supportedLocales: ['fr', 'es'],
+      });
+      expect(localizer.getAvailableLocales()).to.have.members(['fr', 'es']);
     });
 
-    it('should return an empty array if no dictionaries are set', function () {
+    it('should combine and deduplicate locales from dictionaries and supportedLocales', function () {
+      const localizer = new Localizer({
+        dictionaries: {en: {}, ru: {}},
+        supportedLocales: ['ru', 'de'],
+      });
+      expect(localizer.getAvailableLocales()).to.have.members([
+        'en',
+        'ru',
+        'de',
+      ]);
+      expect(localizer.getAvailableLocales()).to.have.lengthOf(3);
+    });
+
+    it('should include the forced locale even if it is not in other sources', function () {
+      const localizer = new Localizer({
+        dictionaries: {en: {}},
+        supportedLocales: ['de'],
+      });
+      localizer.setLocale('fr');
+      expect(localizer.getAvailableLocales()).to.have.members([
+        'en',
+        'de',
+        'fr',
+      ]);
+    });
+
+    it('should return an empty array if no sources are provided', function () {
       const localizer = new Localizer();
       expect(localizer.getAvailableLocales()).to.be.an('array').that.is.empty;
     });
@@ -468,6 +496,19 @@ describe('Localizer', function () {
       expect(localizer.detectLocale()).to.be.eq('de');
     });
 
+    it('should detect a locale from supportedLocales even if it has no dictionary', function () {
+      setupBrowserMocks({search: '?lang=fr'});
+      const localizer = new Localizer({
+        fallbackLocale: 'en',
+        detectionOrder: [DetectionSource.QUERY],
+        supportedLocales: ['fr'],
+        dictionaries: {en: {greeting: 'Hello'}},
+      });
+      expect(localizer.detectLocale()).to.be.eq('fr');
+      expect(localizer.getLocale()).to.be.eq('fr');
+      expect(localizer.t('greeting')).to.be.eq('Hello');
+    });
+    
     it('should update the internal detectedLocale state', function () {
       setupBrowserMocks({search: '?lang=de'});
       const localizer = new Localizer({

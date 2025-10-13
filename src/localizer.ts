@@ -34,7 +34,7 @@ export type DetectionSource =
  * Localizer state.
  */
 export type LocalizerState = {
-  locales: string[];
+  supportedLocales: string[];
   fallbackLocale: string;
   detectedLocale: string | undefined;
   forcedLocale: string | undefined;
@@ -80,7 +80,7 @@ export const BROWSER_LOCALE_SOURCES: DetectionSource[] = [
  * Localizer initial state.
  */
 export const LOCALIZER_INITIAL_STATE: LocalizerState = {
-  locales: [],
+  supportedLocales: [],
   fallbackLocale: 'en',
   detectedLocale: undefined,
   forcedLocale: undefined,
@@ -244,7 +244,10 @@ export class Localizer extends Service {
    * Получить доступные локали.
    */
   getAvailableLocales(): string[] {
-    const locales = new Set(Object.keys(this.state.dictionaries));
+    const locales = new Set([
+      ...Object.keys(this.state.dictionaries),
+      ...this.state.supportedLocales,
+    ]);
     if (this.state.forcedLocale) locales.add(this.state.forcedLocale);
     return Array.from(locales);
   }
