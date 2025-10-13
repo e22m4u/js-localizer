@@ -110,15 +110,15 @@ console.log(localizer.t('helloName', 'Oleg')); // > Hello, Oleg!
 ```js
 localizer.setDictionary('ru', {
   iHaveApples: {
-    one: 'У меня одно яблоко',
-    few: 'У меня %d яблока', // для чисел 2, 3, 4
-    many: 'У меня %d яблок', // для 0, 5, 6... и дробных
+    one: 'У меня %d яблоко',
+    few: 'У меня %d яблока', // для чисел 2, 3, 4 и дробных
+    many: 'У меня %d яблок', // для 0, 5, 6...
   },
 });
 
 localizer.setLocale('ru');
 
-console.log(localizer.t('iHaveApples', 1)); // > У меня одно яблоко
+console.log(localizer.t('iHaveApples', 1)); // > У меня 1 яблоко
 console.log(localizer.t('iHaveApples', 3)); // > У меня 3 яблока
 console.log(localizer.t('iHaveApples', 5)); // > У меня 5 яблок
 ```
@@ -139,6 +139,10 @@ console.log(localizer.t('iHaveApples', 1));   // > I have apple
 console.log(localizer.t('iHaveApples', 0));   // > I have 0 apples
 console.log(localizer.t('iHaveApples', 10));  // > I have 10 apples
 ```
+
+Для языков с двумя формами множественного числа (например, английского)
+достаточно указать `one` и `many` (или `few`). Библиотека автоматически
+использует вторую форму для всех чисел, кроме `1` и `-1`.
 
 ### Перевод из объекта (метод `o`)
 
@@ -168,7 +172,8 @@ console.log(localizer.o(counter, 5)); // > 5 товаров
 
 Если перевод для текущей локали отсутствует, будет использована резервная
 локаль (`fallbackLocale`), а если и она недоступна, то будет возвращён
-перевод для первого найденного языка в объекте.
+перевод для первого найденного языка в объекте. Если подходящий перевод
+так и не будет найден (например, объект пуст), метод вернёт пустую строку.
 
 ### Иммутабельность и клонирование
 
