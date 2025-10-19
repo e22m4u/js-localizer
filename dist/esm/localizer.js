@@ -1,8 +1,8 @@
-import { IncomingMessage } from 'http';
 import { format } from '@e22m4u/js-format';
 import { Service } from '@e22m4u/js-service';
 import { assignDeep } from './utils/index.js';
 import { numWords } from './utils/num-words.js';
+import { IncomingMessage } from './incoming-message.js';
 import { isServiceContainer } from '@e22m4u/js-service';
 /**
  * Detection source.

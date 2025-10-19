@@ -31,7 +31,6 @@ __export(index_exports, {
 module.exports = __toCommonJS(index_exports);
 
 // dist/esm/localizer.js
-var import_http = require("http");
 var import_js_format = require("@e22m4u/js-format");
 var import_js_service = require("@e22m4u/js-service");
 
@@ -83,6 +82,22 @@ function assignDeep(target, ...sources) {
   return target;
 }
 __name(assignDeep, "assignDeep");
+
+// dist/esm/incoming-message.js
+var IncomingMessage;
+var isNode = typeof process !== "undefined" && process.versions != null && process.versions.node != null;
+var _a, _b;
+if (isNode) {
+  try {
+    IncomingMessage = require("http").IncomingMessage;
+  } catch (error) {
+    IncomingMessage = (_a = class {
+    }, __name(_a, "IncomingMessage"), _a);
+  }
+} else {
+  IncomingMessage = (_b = class {
+  }, __name(_b, "IncomingMessage"), _b);
+}
 
 // dist/esm/localizer.js
 var import_js_service2 = require("@e22m4u/js-service");
@@ -169,21 +184,21 @@ var _Localizer = class _Localizer extends import_js_service.Service {
     if (this.state.httpRequest) {
       return this.state.httpRequest;
     }
-    if (this.hasService(import_http.IncomingMessage)) {
-      return this.getService(import_http.IncomingMessage);
+    if (this.hasService(IncomingMessage)) {
+      return this.getService(IncomingMessage);
     }
   }
   /**
    * Получить локаль.
    */
   getLocale() {
-    var _a;
+    var _a2;
     if (this.state.forcedLocale)
       return this.state.forcedLocale;
     if (this.state.detectedLocale)
       return this.state.detectedLocale;
     this.detectLocale(true);
-    return (_a = this.state.detectedLocale) != null ? _a : this.state.fallbackLocale;
+    return (_a2 = this.state.detectedLocale) != null ? _a2 : this.state.fallbackLocale;
   }
   /**
    * Установить локаль принудительно.
@@ -295,8 +310,8 @@ var _Localizer = class _Localizer extends import_js_service.Service {
    * @param dictionary
    */
   addDictionary(locale, dictionary) {
-    var _a;
-    this.state.dictionaries[locale] = (_a = this.state.dictionaries[locale]) != null ? _a : {};
+    var _a2;
+    this.state.dictionaries[locale] = (_a2 = this.state.dictionaries[locale]) != null ? _a2 : {};
     assignDeep(this.state.dictionaries[locale], dictionary);
     this.state.detectedLocale = void 0;
     return this;
@@ -358,7 +373,7 @@ var _Localizer = class _Localizer extends import_js_service.Service {
    * @param options
    */
   detectLocaleFromSource(availableLocales, source) {
-    var _a, _b, _c, _d, _e;
+    var _a2, _b2, _c, _d, _e;
     if (typeof window === "undefined") {
       if (BROWSER_LOCALE_SOURCES.includes(source)) {
         return;
@@ -387,12 +402,12 @@ var _Localizer = class _Localizer extends import_js_service.Service {
       case DetectionSource.QUERY: {
         const key = this.state.queryStringKey;
         const params = new URLSearchParams(window.location.search);
-        candidate = (_a = params.get(key)) != null ? _a : void 0;
+        candidate = (_a2 = params.get(key)) != null ? _a2 : void 0;
         break;
       }
       case DetectionSource.LOCAL_STORAGE: {
         const key = this.state.localStorageKey;
-        candidate = (_b = window.localStorage.getItem(key)) != null ? _b : void 0;
+        candidate = (_b2 = window.localStorage.getItem(key)) != null ? _b2 : void 0;
         break;
       }
       case DetectionSource.HTML_TAG: {
@@ -422,13 +437,13 @@ var _Localizer = class _Localizer extends import_js_service.Service {
    * @param args
    */
   t(key, ...args) {
-    var _a, _b;
+    var _a2, _b2;
     const locale = this.getLocale();
     const fallbackLocale = this.state.fallbackLocale;
-    let dict = (_a = this.state.dictionaries[locale]) != null ? _a : {};
+    let dict = (_a2 = this.state.dictionaries[locale]) != null ? _a2 : {};
     let entry = dict[key];
     if (!entry) {
-      dict = (_b = this.state.dictionaries[fallbackLocale]) != null ? _b : {};
+      dict = (_b2 = this.state.dictionaries[fallbackLocale]) != null ? _b2 : {};
       entry = dict[key];
       if (!entry) {
         return this.format(key, ...args);
@@ -474,7 +489,7 @@ var _Localizer = class _Localizer extends import_js_service.Service {
    * @param args
    */
   o(obj, ...args) {
-    var _a;
+    var _a2;
     let locale = this.getLocale();
     let entry = obj[locale];
     if (!entry) {
@@ -490,7 +505,7 @@ var _Localizer = class _Localizer extends import_js_service.Service {
     if (entry == null)
       return "";
     if (typeof entry === "object" && entry != null) {
-      return (_a = this.formatNumerableEntry(entry, args)) != null ? _a : "";
+      return (_a2 = this.formatNumerableEntry(entry, args)) != null ? _a2 : "";
     }
     if (typeof entry === "string") {
       return this.format(entry, ...args);
