@@ -1,6 +1,6 @@
 {
   "name": "@e22m4u/js-localizer",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Легковесный сервис локализации для JavaScript",
   "author": "Mikhail Evstropov <e22m4u@yandex.ru>",
   "license": "MIT",
