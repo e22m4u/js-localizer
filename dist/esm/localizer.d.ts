@@ -1,6 +1,6 @@
-import { Service } from '@e22m4u/js-service';
-import { IncomingMessage } from './http-polyfill.js';
+import type { IncomingMessage } from 'http';
 import { ServiceContainer } from '@e22m4u/js-service';
+import { Service } from '@e22m4u/js-service';
 /**
  * Lang object.
  */
@@ -99,7 +99,7 @@ export declare class Localizer extends Service {
     /**
      * Get http request.
      */
-    getHttpRequest(): import("http").IncomingMessage | undefined;
+    getHttpRequest(): IncomingMessage | undefined;
     /**
      * Получить локаль.
      */

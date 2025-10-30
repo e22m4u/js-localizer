@@ -1,9 +1,8 @@
 import { format } from '@e22m4u/js-format';
-import { Service } from '@e22m4u/js-service';
 import { assignDeep } from './utils/index.js';
 import { numWords } from './utils/num-words.js';
-import { IncomingMessage } from './http-polyfill.js';
 import { isServiceContainer } from '@e22m4u/js-service';
+import { Service } from '@e22m4u/js-service';
 /**
  * Detection source.
  */
@@ -103,8 +102,12 @@ export class Localizer extends Service {
         if (this.state.httpRequest) {
             return this.state.httpRequest;
         }
-        if (this.hasService(IncomingMessage)) {
-            return this.getService(IncomingMessage);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const servicesMap = this.container['_services'];
+        const servicesCtors = Array.from(servicesMap.keys());
+        const requestCtor = servicesCtors.find(ctor => typeof ctor === 'function' && ctor.name === 'IncomingMessage');
+        if (requestCtor && this.hasService(requestCtor)) {
+            return this.getService(requestCtor);
         }
     }
     /**
