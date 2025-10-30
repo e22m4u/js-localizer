@@ -1,6 +1,6 @@
 import { Service } from '@e22m4u/js-service';
+import { IncomingMessage } from './http-polyfill.js';
 import { ServiceContainer } from '@e22m4u/js-service';
-import { IncomingMessage } from './incoming-message.js';
 /**
  * Lang object.
  */

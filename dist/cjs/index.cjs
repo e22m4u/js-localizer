@@ -83,20 +83,31 @@ function assignDeep(target, ...sources) {
 }
 __name(assignDeep, "assignDeep");
 
-// dist/esm/incoming-message.js
+// dist/esm/http-polyfill.js
 var IncomingMessage;
 var isNode = typeof process !== "undefined" && process.versions != null && process.versions.node != null;
-var _a, _b;
-if (isNode) {
+var isESM = (() => {
   try {
-    IncomingMessage = require("http").IncomingMessage;
-  } catch (error) {
-    IncomingMessage = (_a = class {
-    }, __name(_a, "IncomingMessage"), _a);
+    return new Function('return typeof import.meta === "object"')();
+  } catch (syntaxError) {
+    return false;
+  }
+})();
+var _a;
+if (isNode) {
+  if (isESM) {
+    const createRequire = new Function("url", 'return require("node:module").createRequire(url);');
+    const getImportMetaUrl = new Function("return import.meta.url");
+    const importMetaUrl = getImportMetaUrl();
+    const require2 = createRequire(importMetaUrl);
+    IncomingMessage = require2("http").IncomingMessage;
+  } else {
+    const moduleName = "http";
+    IncomingMessage = require(moduleName).IncomingMessage;
   }
 } else {
-  IncomingMessage = (_b = class {
-  }, __name(_b, "IncomingMessage"), _b);
+  IncomingMessage = (_a = class {
+  }, __name(_a, "IncomingMessage"), _a);
 }
 
 // dist/esm/localizer.js
@@ -373,7 +384,7 @@ var _Localizer = class _Localizer extends import_js_service.Service {
    * @param options
    */
   detectLocaleFromSource(availableLocales, source) {
-    var _a2, _b2, _c, _d, _e;
+    var _a2, _b, _c, _d, _e;
     if (typeof window === "undefined") {
       if (BROWSER_LOCALE_SOURCES.includes(source)) {
         return;
@@ -407,7 +418,7 @@ var _Localizer = class _Localizer extends import_js_service.Service {
       }
       case DetectionSource.LOCAL_STORAGE: {
         const key = this.state.localStorageKey;
-        candidate = (_b2 = window.localStorage.getItem(key)) != null ? _b2 : void 0;
+        candidate = (_b = window.localStorage.getItem(key)) != null ? _b : void 0;
         break;
       }
       case DetectionSource.HTML_TAG: {
@@ -437,13 +448,13 @@ var _Localizer = class _Localizer extends import_js_service.Service {
    * @param args
    */
   t(key, ...args) {
-    var _a2, _b2;
+    var _a2, _b;
     const locale = this.getLocale();
     const fallbackLocale = this.state.fallbackLocale;
     let dict = (_a2 = this.state.dictionaries[locale]) != null ? _a2 : {};
     let entry = dict[key];
     if (!entry) {
-      dict = (_b2 = this.state.dictionaries[fallbackLocale]) != null ? _b2 : {};
+      dict = (_b = this.state.dictionaries[fallbackLocale]) != null ? _b : {};
       entry = dict[key];
       if (!entry) {
         return this.format(key, ...args);
