@@ -32,6 +32,7 @@ module.exports = __toCommonJS(index_exports);
 
 // dist/esm/localizer.js
 var import_js_format = require("@e22m4u/js-format");
+var import_js_service = require("@e22m4u/js-service");
 
 // dist/esm/utils/num-words.js
 function numWords(value, one, few, many) {
@@ -83,7 +84,6 @@ function assignDeep(target, ...sources) {
 __name(assignDeep, "assignDeep");
 
 // dist/esm/localizer.js
-var import_js_service = require("@e22m4u/js-service");
 var import_js_service2 = require("@e22m4u/js-service");
 var DetectionSource = {
   REQUEST_HEADER: "requestHeader",
@@ -123,7 +123,7 @@ var LOCALIZER_INITIAL_STATE = {
   dictionaries: {},
   httpRequest: void 0
 };
-var _Localizer = class _Localizer extends import_js_service2.Service {
+var _Localizer = class _Localizer extends import_js_service.Service {
   /**
    * Localizer state.
    */
@@ -135,7 +135,7 @@ var _Localizer = class _Localizer extends import_js_service2.Service {
    * @param options
    */
   constructor(containerOrOptions, options) {
-    if ((0, import_js_service.isServiceContainer)(containerOrOptions)) {
+    if ((0, import_js_service2.isServiceContainer)(containerOrOptions)) {
       super(containerOrOptions);
     } else {
       super();
@@ -168,12 +168,7 @@ var _Localizer = class _Localizer extends import_js_service2.Service {
     if (this.state.httpRequest) {
       return this.state.httpRequest;
     }
-    const servicesMap = this.container["_services"];
-    const servicesCtors = Array.from(servicesMap.keys());
-    const requestCtor = servicesCtors.find((ctor) => typeof ctor === "function" && ctor.name === "IncomingMessage");
-    if (requestCtor && this.hasService(requestCtor)) {
-      return this.getService(requestCtor);
-    }
+    return this.findService((ctor) => ctor.name === "IncomingMessage");
   }
   /**
    * Получить локаль.
