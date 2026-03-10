@@ -1,4 +1,4 @@
-# @e22m4u/js-localizer
+## @e22m4u/js-localizer
 
 Легковесный сервис локализации для JavaScript.
 
