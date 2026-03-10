@@ -55,9 +55,6 @@ const localizer = new Localizer({
   },
 });
 
-// переопределение текущей локали
-localizer.setLocale('ru');
-
 // добавление словаря для локали "ru"
 localizer.setDictionary('ru', {
   hello: 'Привет!',
