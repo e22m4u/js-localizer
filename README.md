@@ -55,12 +55,6 @@ const localizer = new Localizer({
   },
 });
 
-// добавление словаря для локали "ru"
-localizer.setDictionary('ru', {
-  hello: 'Привет!',
-  helloName: 'Привет, %s!',
-});
-
 // перевод по словарю используя ключ
 console.log(localizer.t('hello'));             // > Привет!
 console.log(localizer.t('helloName', 'Олег')); // > Привет, Олег!
