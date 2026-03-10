@@ -67,7 +67,7 @@ console.log(localizer.t('helloName', 'Oleg')); // > Hello, Oleg!
 console.log(localizer.o({ru: 'Привет', en: 'Hello'})); // > Hello!
 ```
 
-*Примечание: Форматирование строк (`%s`, `%d`) выполняется с помощью библиотеки
+*i. Форматирование строк (`%s`, `%d`) выполняется с помощью библиотеки
 [@e22m4u/js-format](https://www.npmjs.com/package/@e22m4u/js-format).*
 
 ## Продвинутое использование
