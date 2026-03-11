@@ -40,11 +40,23 @@ export class Localizer {
         );
       }
       // options.locale
-      if (options.locale) {
+      if (options.locale !== undefined) {
+        if (!options.locale || typeof options.locale !== 'string') {
+          throw new InvalidArgumentError(
+            'Option "locale" must be a non-empty String, but %v was given.',
+            options.locale,
+          );
+        }
         this.setLocale(options.locale);
       }
       // options.fallbackLocale
-      if (options.fallbackLocale) {
+      if (options.fallbackLocale !== undefined) {
+        if (!options.fallbackLocale || typeof options.fallbackLocale !== 'string') {
+          throw new InvalidArgumentError(
+            'Option "fallbackLocale" must be a non-empty String, but %v was given.',
+            options.fallbackLocale,
+          );
+        }
         this.setFallbackLocale(options.fallbackLocale);
       }
       // options.dictionaries
@@ -263,7 +275,15 @@ export class Localizer {
       dict = this._fallbackLocale && this._dictionaries[this._fallbackLocale];
       entry = dict && dict[key];
       if (entry == null) {
-        return this._format(key, ...args);
+        const firstAvailableLocale = Object.keys(this._dictionaries).find(
+          locale => this._dictionaries[locale][key] !== undefined,
+        );
+        if (firstAvailableLocale) {
+          entry = this._dictionaries[firstAvailableLocale][key];
+        }
+        if (entry == null) {
+          return this._format(key, ...args);
+        }
       }
     }
     if (typeof entry === 'object' && !Array.isArray(entry)) {
@@ -337,11 +357,11 @@ export class Localizer {
       entry = this._fallbackLocale && langObject[this._fallbackLocale];
     }
     if (entry == null) {
-      const firstAvailableKey = Object.keys(langObject).find(
-        key => langObject[key] !== undefined,
+      const firstAvailableLocale = Object.keys(langObject).find(
+        locale => langObject[locale] !== undefined,
       );
-      if (firstAvailableKey) {
-        entry = langObject[firstAvailableKey];
+      if (firstAvailableLocale) {
+        entry = langObject[firstAvailableLocale];
       }
     }
     if (entry !== null && typeof entry === 'object' && !Array.isArray(entry)) {
