@@ -1,92 +1,128 @@
-import {numWords} from './utils/index.js';
-import {format, InvalidArgumentError} from '@e22m4u/js-format';
+"use strict";
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-/**
- * Localizer.
- */
-export class Localizer {
+// src/index.js
+var index_exports = {};
+__export(index_exports, {
+  Localizer: () => Localizer,
+  numWords: () => numWords
+});
+module.exports = __toCommonJS(index_exports);
+
+// src/utils/num-words.js
+function numWords(value, one, few, many) {
+  if (few == null && many == null) {
+    return one;
+  }
+  if (few == null || many == null) {
+    const pluralForm = few || many;
+    return Math.abs(value) === 1 ? one : pluralForm;
+  }
+  if (!Number.isInteger(value)) {
+    return few;
+  }
+  const absValue = Math.abs(value);
+  const val100 = absValue % 100;
+  const val10 = val100 % 10;
+  if (val100 > 10 && val100 < 20) {
+    return many;
+  }
+  if (val10 > 1 && val10 < 5) {
+    return few;
+  }
+  if (val10 === 1) {
+    return one;
+  }
+  return many;
+}
+__name(numWords, "numWords");
+
+// src/localizer.js
+var import_js_format = require("@e22m4u/js-format");
+var Localizer = class {
+  static {
+    __name(this, "Localizer");
+  }
   /**
    * Locale.
    *
    * @type {string|undefined}
    */
-  _locale = undefined;
-
+  _locale = void 0;
   /**
    * Fallback locale.
    *
    * @type {string}
    */
-  _fallbackLocale = 'en';
-
+  _fallbackLocale = "en";
   /**
    * Dictionaries.
    *
    * @type {object}
    */
   _dictionaries = {};
-
   /**
    * Constructor.
    *
    * @param {object} [options]
    */
   constructor(options) {
-    if (options !== undefined) {
-      if (!options || typeof options !== 'object' || Array.isArray(options)) {
-        throw new InvalidArgumentError(
+    if (options !== void 0) {
+      if (!options || typeof options !== "object" || Array.isArray(options)) {
+        throw new import_js_format.InvalidArgumentError(
           'Parameter "options" must be an Object, but %v was given.',
-          options,
+          options
         );
       }
-      // options.locale
-      if (options.locale !== undefined) {
-        if (!options.locale || typeof options.locale !== 'string') {
-          throw new InvalidArgumentError(
+      if (options.locale !== void 0) {
+        if (!options.locale || typeof options.locale !== "string") {
+          throw new import_js_format.InvalidArgumentError(
             'Option "locale" must be a non-empty String, but %v was given.',
-            options.locale,
+            options.locale
           );
         }
         this.setLocale(options.locale);
       }
-      // options.fallbackLocale
-      if (options.fallbackLocale !== undefined) {
-        if (
-          !options.fallbackLocale ||
-          typeof options.fallbackLocale !== 'string'
-        ) {
-          throw new InvalidArgumentError(
+      if (options.fallbackLocale !== void 0) {
+        if (!options.fallbackLocale || typeof options.fallbackLocale !== "string") {
+          throw new import_js_format.InvalidArgumentError(
             'Option "fallbackLocale" must be a non-empty String, but %v was given.',
-            options.fallbackLocale,
+            options.fallbackLocale
           );
         }
         this.setFallbackLocale(options.fallbackLocale);
       }
-      // options.dictionaries
-      if (options.dictionaries !== undefined) {
-        if (
-          !options.dictionaries ||
-          typeof options.dictionaries !== 'object' ||
-          Array.isArray(options.dictionaries)
-        ) {
-          throw new InvalidArgumentError(
+      if (options.dictionaries !== void 0) {
+        if (!options.dictionaries || typeof options.dictionaries !== "object" || Array.isArray(options.dictionaries)) {
+          throw new import_js_format.InvalidArgumentError(
             'Option "dictionaries" must be an Object, but %v was given.',
-            options.dictionaries,
+            options.dictionaries
           );
         }
-        // options.dictionaries[k]
         for (const locale of Object.keys(options.dictionaries)) {
           const dictionary = options.dictionaries[locale];
-          if (
-            !dictionary ||
-            typeof dictionary !== 'object' ||
-            Array.isArray(dictionary)
-          ) {
-            throw new InvalidArgumentError(
-              'Property %v of "dictionaries" must be an Object, ' +
-                'but %v was given.',
+          if (!dictionary || typeof dictionary !== "object" || Array.isArray(dictionary)) {
+            throw new import_js_format.InvalidArgumentError(
+              'Property %v of "dictionaries" must be an Object, but %v was given.',
               locale,
-              dictionary,
+              dictionary
             );
           }
           this.setDictionary(locale, options.dictionaries[locale]);
@@ -94,7 +130,6 @@ export class Localizer {
       }
     }
   }
-
   /**
    * Установить текущую локаль.
    *
@@ -107,16 +142,15 @@ export class Localizer {
    * @returns {this}
    */
   setLocale(locale) {
-    if (!locale || typeof locale !== 'string') {
-      throw new InvalidArgumentError(
+    if (!locale || typeof locale !== "string") {
+      throw new import_js_format.InvalidArgumentError(
         'Parameter "locale" must be a non-empty String, but %v was given.',
-        locale,
+        locale
       );
     }
     this._locale = locale;
     return this;
   }
-
   /**
    * Получить текущую локаль или альтернативную.
    *
@@ -143,7 +177,6 @@ export class Localizer {
   getLocale() {
     return this._locale || this._fallbackLocale;
   }
-
   /**
    * Установить альтернативную локаль.
    *
@@ -165,16 +198,15 @@ export class Localizer {
    * @returns {this}
    */
   setFallbackLocale(locale) {
-    if (!locale || typeof locale !== 'string') {
-      throw new InvalidArgumentError(
+    if (!locale || typeof locale !== "string") {
+      throw new import_js_format.InvalidArgumentError(
         'Parameter "locale" must be a non-empty String, but %v was given.',
-        locale,
+        locale
       );
     }
     this._fallbackLocale = locale;
     return this;
   }
-
   /**
    * Получить альтернативную локаль.
    *
@@ -183,7 +215,6 @@ export class Localizer {
   getFallbackLocale() {
     return this._fallbackLocale;
   }
-
   /**
    * Установить справочник.
    *
@@ -205,26 +236,21 @@ export class Localizer {
    * @returns {this}
    */
   setDictionary(locale, dictionary) {
-    if (!locale || typeof locale !== 'string') {
-      throw new InvalidArgumentError(
+    if (!locale || typeof locale !== "string") {
+      throw new import_js_format.InvalidArgumentError(
         'Parameter "locale" must be a non-empty String, but %v was given.',
-        locale,
+        locale
       );
     }
-    if (
-      !dictionary ||
-      typeof dictionary !== 'object' ||
-      Array.isArray(dictionary)
-    ) {
-      throw new InvalidArgumentError(
+    if (!dictionary || typeof dictionary !== "object" || Array.isArray(dictionary)) {
+      throw new import_js_format.InvalidArgumentError(
         'Parameter "dictionary" must be an Object, but %v was given.',
-        dictionary,
+        dictionary
       );
     }
     this._dictionaries[locale] = dictionary;
     return this;
   }
-
   /**
    * Найти и сформировать перевод по ключу из справочника.
    *
@@ -266,10 +292,10 @@ export class Localizer {
    * @returns {string}
    */
   t(key, ...args) {
-    if (typeof key !== 'string') {
-      throw new InvalidArgumentError(
+    if (typeof key !== "string") {
+      throw new import_js_format.InvalidArgumentError(
         'Parameter "key" must be a String, but %v was given.',
-        key,
+        key
       );
     }
     let dict = this._locale && this._dictionaries[this._locale];
@@ -279,7 +305,7 @@ export class Localizer {
       entry = dict && dict[key];
       if (entry == null) {
         const firstAvailableLocale = Object.keys(this._dictionaries).find(
-          locale => this._dictionaries[locale][key] !== undefined,
+          (locale) => this._dictionaries[locale][key] !== void 0
         );
         if (firstAvailableLocale) {
           entry = this._dictionaries[firstAvailableLocale][key];
@@ -289,10 +315,10 @@ export class Localizer {
         }
       }
     }
-    if (typeof entry === 'object' && !Array.isArray(entry)) {
+    if (typeof entry === "object" && !Array.isArray(entry)) {
       entry = this._getTranslationFromDeclensionObject(entry, args);
     }
-    if (typeof entry === 'string') {
+    if (typeof entry === "string") {
       return this._format(entry, ...args);
     }
     if (entry == null) {
@@ -300,7 +326,6 @@ export class Localizer {
     }
     return String(entry);
   }
-
   /**
    * Извлечь и форматировать перевод из объекта для текущей локали.
    *
@@ -345,14 +370,10 @@ export class Localizer {
    * @returns {string}
    */
   o(langObject, ...args) {
-    if (
-      !langObject ||
-      typeof langObject !== 'object' ||
-      Array.isArray(langObject)
-    ) {
-      throw new InvalidArgumentError(
+    if (!langObject || typeof langObject !== "object" || Array.isArray(langObject)) {
+      throw new import_js_format.InvalidArgumentError(
         'Parameter "langObject" must be an Object, but %v was given.',
-        langObject,
+        langObject
       );
     }
     let entry = this._locale && langObject[this._locale];
@@ -361,24 +382,23 @@ export class Localizer {
     }
     if (entry == null) {
       const firstAvailableLocale = Object.keys(langObject).find(
-        locale => langObject[locale] !== undefined,
+        (locale) => langObject[locale] !== void 0
       );
       if (firstAvailableLocale) {
         entry = langObject[firstAvailableLocale];
       }
     }
-    if (entry !== null && typeof entry === 'object' && !Array.isArray(entry)) {
+    if (entry !== null && typeof entry === "object" && !Array.isArray(entry)) {
       entry = this._getTranslationFromDeclensionObject(entry, args);
     }
-    if (typeof entry === 'string') {
+    if (typeof entry === "string") {
       return this._format(entry, ...args);
     }
     if (entry == null) {
-      return '';
+      return "";
     }
     return String(entry);
   }
-
   /**
    * Format.
    *
@@ -387,13 +407,12 @@ export class Localizer {
    * @returns {string}
    */
   _format(pattern, ...args) {
-    if (typeof pattern === 'string' && /%[a-zA-Z]/.test(pattern)) {
-      return format(pattern, ...args);
+    if (typeof pattern === "string" && /%[a-zA-Z]/.test(pattern)) {
+      return (0, import_js_format.format)(pattern, ...args);
     } else {
       return pattern;
     }
   }
-
   /**
    * Определить запись в объекте склонений согласно аргументам.
    *
@@ -403,15 +422,15 @@ export class Localizer {
    */
   _getTranslationFromDeclensionObject(decl, args) {
     let fallback;
-    if (decl.one != undefined) {
+    if (decl.one != void 0) {
       fallback = decl.one;
-    } else if (decl.few != undefined) {
+    } else if (decl.few != void 0) {
       fallback = decl.few;
-    } else if (decl.many != undefined) {
+    } else if (decl.many != void 0) {
       fallback = decl.many;
     }
-    const numArg = args.find(v => typeof v === 'number');
-    if (typeof numArg === 'number') {
+    const numArg = args.find((v) => typeof v === "number");
+    if (typeof numArg === "number") {
       let entry = numWords(numArg, decl.one, decl.few, decl.many);
       if (entry == null) {
         entry = fallback;
@@ -420,4 +439,9 @@ export class Localizer {
     }
     return fallback;
   }
-}
+};
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
+  Localizer,
+  numWords
+});
