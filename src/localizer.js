@@ -127,15 +127,13 @@ export class Localizer {
    * // если текущая локаль не определена,
    * // то возвращается альтернативная локаль (en)
    * const res1 = localizer.getLocale();
-   * console.log(res1);
-   * // > en
+   * console.log(res1); // "en"
    *
    * // если текущая локаль определена,
    * // то приоритет отдается ей
    * localizer.setLocale('ru');
    * const res2 = localizer.getLocale();
-   * console.log(res2);
-   * // > ru
+   * console.log(res2); // "ru"
    * ```
    *
    * @returns {string}
@@ -152,13 +150,11 @@ export class Localizer {
    * const localizer = new Localizer();
    *
    * const res1 = localizer.getFallbackLocale();
-   * console.log(res1);
-   * // > en
+   * console.log(res1); // "en"
    *
    * localizer.setFallbackLocale('ru');
    * const res2 = localizer.getFallbackLocale();
-   * console.log(res2);
-   * // > ru
+   * console.log(res2); // "ru"
    * ```
    *
    * @param {string} locale
@@ -178,6 +174,18 @@ export class Localizer {
   /**
    * Получить альтернативную локаль.
    *
+   * Пример:
+   * ```js
+   * const localizer = new Localizer();
+   *
+   * const res1 = localizer.getFallbackLocale();
+   * console.log(res1); // "en"
+   *
+   * localizer.setFallbackLocale('ru');
+   * const res2 = localizer.getFallbackLocale();
+   * console.log(res2); // "ru"
+   * ```
+   *
    * @returns {string}
    */
   getFallbackLocale() {
@@ -185,13 +193,34 @@ export class Localizer {
   }
 
   /**
-   * Установить справочник.
+   * Получить локали имеющихся справочников.
+   *
+   * Пример:
+   * ```js
+   * const localizer = new Localizer({
+   *   dictionaries: {
+   *     ru: {hello: 'Привет'},
+   *     en: {hello: 'Hello'},
+   *   },
+   * });
+   * const locales = localizer.getAvailableLocales();
+   * console.log(locales); // ["ru", "en"]
+   * ```
+   *
+   * @returns {string[]}
+   */
+  getAvailableLocales() {
+    return Object.keys(this._dictionaries);
+  }
+
+  /**
+   * Установить или заменить словарь для указанной локали.
    *
    * Пример:
    * ```js
    * localizer.setDictionary('ru', {
-   *   'hello': 'Здравствуй',
-   *   'helloName': 'Здравствуй, %s!',
+   *   'hello': 'Привет',
+   *   'helloName': 'Привет, %s!',
    *   'iHaveApples': {
    *     one: 'У меня одно яблоко',
    *     few: 'У меня %d яблока',
@@ -234,8 +263,8 @@ export class Localizer {
    *   locale: 'ru',
    *   dictionaries: {
    *     ru: {
-   *       'hello': 'Здравствуй',
-   *       'helloName': 'Здравствуй, %s!',
+   *       'hello': 'Привет',
+   *       'helloName': 'Привет, %s!',
    *       'iHaveApples': {
    *         one: 'У меня одно яблоко',
    *         few: 'У меня %d яблока',
@@ -247,18 +276,15 @@ export class Localizer {
    *
    * // базовый пример
    * const res1 = localizer.t('hello');
-   * console.log(res1);
-   * // > Здравствуй
+   * console.log(res1); // "Привет"
    *
    * // интерполяция
    * const res2 = localizer.t('helloName', 'Мир');
-   * console.log(res2);
-   * // > Здравствуй, Мир!
+   * console.log(res2); // "Привет, Мир!"
    *
    * // склонение
    * const res3 = localizer.t('iHaveApples', 10);
-   * console.log(res3);
-   * // > У меня 10 яблок
+   * console.log(res3); // "У меня 10 яблок"
    * ```
    *
    * @param {string} key
@@ -310,19 +336,17 @@ export class Localizer {
    *
    * // базовый пример
    * const res1 = localizer.o({
-   *   ru: 'Здравствуй',
+   *   ru: 'Привет',
    *   en: 'Hello',
    * });
-   * console.log(res1);
-   * // > Здравствуй
+   * console.log(res1); // "Привет"
    *
    * // интерполяция
    * const res2 = localizer.o({
-   *   ru: 'Здравствуй, %s!',
+   *   ru: 'Привет, %s!',
    *   en: 'Hello, %s!',
    * }, 'Мир');
-   * console.log(res2);
-   * // > Здравствуй, Мир!
+   * console.log(res2); // "Привет, Мир!"
    *
    * // склонение
    * const res3 = localizer.o({
@@ -336,8 +360,7 @@ export class Localizer {
    *     many: 'I have %d apples',
    *   },
    * }, 10);
-   * console.log(res3);
-   * // > У меня 10 яблок
+   * console.log(res3); // "У меня 10 яблок"
    * ```
    *
    * @param {object} langObject

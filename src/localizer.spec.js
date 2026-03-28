@@ -187,6 +187,17 @@ describe('Localizer', function () {
     });
   });
 
+  describe('getAvailableLocales', function () {
+    it('should return available locales of dictionaries', function () {
+      const S = new Localizer();
+      expect(S.getAvailableLocales()).to.be.eql([]);
+      S.setDictionary('en', {hello: 'Hello'});
+      expect(S.getAvailableLocales()).to.be.eql(['en']);
+      S.setDictionary('ru', {hello: 'Привет'});
+      expect(S.getAvailableLocales()).to.be.eql(['en', 'ru']);
+    });
+  });
+
   describe('setDictionary', function () {
     it('should require the parameter "locale" to be a non-empty String', function () {
       const throwable = v => () => {
@@ -242,8 +253,8 @@ describe('Localizer', function () {
       const S = new Localizer();
       S.setDictionary('ru', {hello: 'Привет!'});
       expect(S['_dictionaries'].ru).to.be.eql({hello: 'Привет!'});
-      S.setDictionary('ru', {hello: 'Здравствуй!'});
-      expect(S['_dictionaries'].ru).to.be.eql({hello: 'Здравствуй!'});
+      S.setDictionary('ru', {hello: 'Здравствуйте!'});
+      expect(S['_dictionaries'].ru).to.be.eql({hello: 'Здравствуйте!'});
     });
   });
 
