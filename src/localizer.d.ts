@@ -5,6 +5,7 @@ export type LocalizerOptions = {
   locale?: string;
   fallbackLocale?: string;
   dictionaries?: LocalizerDictionaries;
+  noEmptyString?: boolean;
 };
 
 /**

@@ -73,6 +73,12 @@ var Localizer = class {
    */
   _fallbackLocale = "en";
   /**
+   * No empty string.
+   *
+   * @type {boolean}
+   */
+  _noEmptyString = false;
+  /**
    * Dictionaries.
    *
    * @type {object}
@@ -127,6 +133,15 @@ var Localizer = class {
           }
           this.setDictionary(locale, options.dictionaries[locale]);
         }
+      }
+      if (options.noEmptyString !== void 0) {
+        if (typeof options.noEmptyString !== "boolean") {
+          throw new import_js_format.InvalidArgumentError(
+            'Option "noEmptyString" must be a Boolean, but %v was given.',
+            options.noEmptyString
+          );
+        }
+        this._noEmptyString = options.noEmptyString;
       }
     }
   }
@@ -323,30 +338,36 @@ var Localizer = class {
         key
       );
     }
-    let dict = this._locale && this._dictionaries[this._locale];
-    let entry = dict && dict[key];
-    if (entry == null) {
-      dict = this._fallbackLocale && this._dictionaries[this._fallbackLocale];
-      entry = dict && dict[key];
-      if (entry == null) {
-        const firstAvailableLocale = Object.keys(this._dictionaries).find(
-          (locale) => this._dictionaries[locale][key] !== void 0
-        );
-        if (firstAvailableLocale) {
-          entry = this._dictionaries[firstAvailableLocale][key];
+    const resolveValue = /* @__PURE__ */ __name((val) => {
+      if (val !== null && typeof val === "object" && !Array.isArray(val)) {
+        return this._getDeclension(val, args);
+      }
+      return val;
+    }, "resolveValue");
+    const isValid = /* @__PURE__ */ __name((val) => val != null && !(this._noEmptyString && String(val).trim() === ""), "isValid");
+    let entry;
+    if (this._locale && this._dictionaries[this._locale]) {
+      entry = resolveValue(this._dictionaries[this._locale][key]);
+    }
+    if (!isValid(entry) && this._fallbackLocale && this._dictionaries[this._fallbackLocale]) {
+      entry = resolveValue(this._dictionaries[this._fallbackLocale][key]);
+    }
+    if (!isValid(entry)) {
+      for (const locale in this._dictionaries) {
+        if (locale === this._locale || locale === this._fallbackLocale) {
+          continue;
         }
-        if (entry == null) {
-          return this._format(key, ...args);
+        const tempEntry = resolveValue(this._dictionaries[locale][key]);
+        if (isValid(tempEntry)) {
+          entry = tempEntry;
+          break;
         }
       }
-    }
-    if (typeof entry === "object" && !Array.isArray(entry)) {
-      entry = this._getTranslationFromDeclensionObject(entry, args);
     }
     if (typeof entry === "string") {
       return this._format(entry, ...args);
     }
-    if (entry == null) {
+    if (!isValid(entry)) {
       return this._format(key, ...args);
     }
     return String(entry);
@@ -398,25 +419,36 @@ var Localizer = class {
         langObject
       );
     }
-    let entry = this._locale && langObject[this._locale];
-    if (entry == null) {
-      entry = this._fallbackLocale && langObject[this._fallbackLocale];
-    }
-    if (entry == null) {
-      const firstAvailableLocale = Object.keys(langObject).find(
-        (locale) => langObject[locale] !== void 0
-      );
-      if (firstAvailableLocale) {
-        entry = langObject[firstAvailableLocale];
+    const resolveValue = /* @__PURE__ */ __name((val) => {
+      if (val !== null && typeof val === "object" && !Array.isArray(val)) {
+        return this._getDeclension(val, args);
       }
+      return val;
+    }, "resolveValue");
+    const isValid = /* @__PURE__ */ __name((val) => val != null && !(this._noEmptyString && String(val).trim() === ""), "isValid");
+    let entry;
+    if (this._locale) {
+      entry = resolveValue(langObject[this._locale]);
     }
-    if (entry !== null && typeof entry === "object" && !Array.isArray(entry)) {
-      entry = this._getTranslationFromDeclensionObject(entry, args);
+    if (!isValid(entry) && this._fallbackLocale) {
+      entry = resolveValue(langObject[this._fallbackLocale]);
+    }
+    if (!isValid(entry)) {
+      for (const locale in langObject) {
+        if (locale === this._locale || locale === this._fallbackLocale) {
+          continue;
+        }
+        const tempEntry = resolveValue(langObject[locale]);
+        if (isValid(tempEntry)) {
+          entry = tempEntry;
+          break;
+        }
+      }
     }
     if (typeof entry === "string") {
       return this._format(entry, ...args);
     }
-    if (entry == null) {
+    if (!isValid(entry)) {
       return "";
     }
     return String(entry);
@@ -436,24 +468,25 @@ var Localizer = class {
     }
   }
   /**
-   * Определить запись в объекте склонений согласно аргументам.
+   * Извлечь подходящее склонение из объекта склонений
+   * согласно аргументам.
    *
-   * @param {object} decl
+   * @param {object} declObj
    * @param {*[]} args
    * @returns {string|undefined}
    */
-  _getTranslationFromDeclensionObject(decl, args) {
+  _getDeclension(declObj, args) {
     let fallback;
-    if (decl.one != void 0) {
-      fallback = decl.one;
-    } else if (decl.few != void 0) {
-      fallback = decl.few;
-    } else if (decl.many != void 0) {
-      fallback = decl.many;
+    if (declObj.one != void 0) {
+      fallback = declObj.one;
+    } else if (declObj.few != void 0) {
+      fallback = declObj.few;
+    } else if (declObj.many != void 0) {
+      fallback = declObj.many;
     }
     const numArg = args.find((v) => typeof v === "number");
     if (typeof numArg === "number") {
-      let entry = numWords(numArg, decl.one, decl.few, decl.many);
+      let entry = numWords(numArg, declObj.one, declObj.few, declObj.many);
       if (entry == null) {
         entry = fallback;
       }

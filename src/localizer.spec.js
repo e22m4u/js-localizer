@@ -93,6 +93,25 @@ describe('Localizer', function () {
       throwable({})();
     });
 
+    it('should require the option "noEmptyString" to be a Boolean', function () {
+      const throwable = v => () => new Localizer({noEmptyString: v});
+      const error = s =>
+        format(
+          'Option "noEmptyString" must be a Boolean, but %s was given.',
+          s,
+        );
+      expect(throwable('str')).to.throw(error('"str"'));
+      expect(throwable('')).to.throw(error('""'));
+      expect(throwable(10)).to.throw(error('10'));
+      expect(throwable(0)).to.throw(error('0'));
+      expect(throwable([])).to.throw(error('Array'));
+      expect(throwable({})).to.throw(error('Object'));
+      expect(throwable(null)).to.throw(error('null'));
+      throwable(true)();
+      throwable(false)();
+      throwable(undefined)();
+    });
+
     it('should allow create an instance without options', function () {
       new Localizer();
     });
@@ -374,6 +393,92 @@ describe('Localizer', function () {
       });
       expect(S.t('I have %d apples', 5)).to.be.eq('I have 5 apples');
     });
+
+    describe('when the option "noEmptyString" is true', function () {
+      it('should use a current locale when a translation is a non-empty string', function () {
+        const S = new Localizer({
+          locale: 'ru',
+          fallbackLocale: 'en',
+          noEmptyString: true,
+          dictionaries: {
+            ru: {hello: 'Привет'},
+            de: {hello: 'Hallo'},
+            en: {hello: 'Hello'},
+          },
+        });
+        expect(S.t('hello')).to.be.eq('Привет');
+      });
+
+      it('should use a fallback locale when a translation is an empty string', function () {
+        const S = new Localizer({
+          locale: 'ru',
+          fallbackLocale: 'en',
+          noEmptyString: true,
+          dictionaries: {
+            ru: {hello: ''},
+            de: {hello: 'Hallo'},
+            en: {hello: 'Hello'},
+          },
+        });
+        expect(S.t('hello')).to.be.eq('Hello');
+      });
+
+      it('should use a first locale when a fallback translation is an empty string', function () {
+        const S = new Localizer({
+          locale: 'ru',
+          fallbackLocale: 'en',
+          noEmptyString: true,
+          dictionaries: {
+            ru: {hello: ''},
+            de: {hello: 'Hallo'},
+            en: {hello: ''},
+          },
+        });
+        expect(S.t('hello')).to.be.eq('Hallo');
+      });
+
+      it('should use a current locale when a declension is a non-empty string', function () {
+        const S = new Localizer({
+          locale: 'ru',
+          fallbackLocale: 'en',
+          noEmptyString: true,
+          dictionaries: {
+            ru: {iHaveApples: {many: 'У меня %d яблок'}},
+            de: {iHaveApples: {many: 'Ich habe %d Äpfel'}},
+            en: {iHaveApples: {many: 'I have %d apples'}},
+          },
+        });
+        expect(S.t('iHaveApples', 5)).to.be.eq('У меня 5 яблок');
+      });
+
+      it('should use a fallback locale when a declension is an empty string', function () {
+        const S = new Localizer({
+          locale: 'ru',
+          fallbackLocale: 'en',
+          noEmptyString: true,
+          dictionaries: {
+            ru: {iHaveApples: {many: ''}},
+            de: {iHaveApples: {many: 'Ich habe %d Äpfel'}},
+            en: {iHaveApples: {many: 'I have %d apples'}},
+          },
+        });
+        expect(S.t('iHaveApples', 5)).to.be.eq('I have 5 apples');
+      });
+
+      it('should use a first locale when a fallback declension is an empty string', function () {
+        const S = new Localizer({
+          locale: 'ru',
+          fallbackLocale: 'en',
+          noEmptyString: true,
+          dictionaries: {
+            ru: {iHaveApples: {many: ''}},
+            de: {iHaveApples: {many: 'Ich habe %d Äpfel'}},
+            en: {iHaveApples: {many: ''}},
+          },
+        });
+        expect(S.t('iHaveApples', 5)).to.be.eq('Ich habe 5 Äpfel');
+      });
+    });
   });
 
   describe('o', function () {
@@ -463,6 +568,89 @@ describe('Localizer', function () {
     it('should return an empty string when the correct declension is not found', function () {
       const S = new Localizer({locale: 'en'});
       expect(S.o({en: {}})).to.be.eq('');
+    });
+
+    describe('when the option "noEmptyString" is true', function () {
+      it('should use a current locale when a translation is a non-empty string', function () {
+        const S = new Localizer({
+          locale: 'ru',
+          fallbackLocale: 'en',
+          noEmptyString: true,
+        });
+        const res = S.o({ru: 'Привет', de: 'Hallo', en: 'Hello'});
+        expect(res).to.be.eq('Привет');
+      });
+
+      it('should use a fallback locale when a translation is an empty string', function () {
+        const S = new Localizer({
+          locale: 'ru',
+          fallbackLocale: 'en',
+          noEmptyString: true,
+        });
+        const res = S.o({ru: '', de: 'Hallo', en: 'Hello'});
+        expect(res).to.be.eq('Hello');
+      });
+
+      it('should use a first locale when a fallback translation is an empty string', function () {
+        const S = new Localizer({
+          locale: 'ru',
+          fallbackLocale: 'en',
+          noEmptyString: true,
+        });
+        const res = S.o({ru: '', de: 'Hallo', en: ''});
+        expect(res).to.be.eq('Hallo');
+      });
+
+      it('should use a current locale when a declension is a non-empty string', function () {
+        const S = new Localizer({
+          locale: 'ru',
+          fallbackLocale: 'en',
+          noEmptyString: true,
+        });
+        const res = S.o(
+          {
+            ru: {many: 'У меня %d яблок'},
+            de: {many: 'Ich habe %d Äpfel'},
+            en: {many: 'I have %d apples'},
+          },
+          5,
+        );
+        expect(res).to.be.eq('У меня 5 яблок');
+      });
+
+      it('should use a fallback locale when a declension is an empty string', function () {
+        const S = new Localizer({
+          locale: 'ru',
+          fallbackLocale: 'en',
+          noEmptyString: true,
+        });
+        const res = S.o(
+          {
+            ru: {many: ''},
+            de: {many: 'Ich habe %d Äpfel'},
+            en: {many: 'I have %d apples'},
+          },
+          5,
+        );
+        expect(res).to.be.eq('I have 5 apples');
+      });
+
+      it('should use a first locale when a fallback declension is an empty string', function () {
+        const S = new Localizer({
+          locale: 'ru',
+          fallbackLocale: 'en',
+          noEmptyString: true,
+        });
+        const res = S.o(
+          {
+            ru: {many: ''},
+            de: {many: 'Ich habe %d Äpfel'},
+            en: {many: ''},
+          },
+          5,
+        );
+        expect(res).to.be.eq('Ich habe 5 Äpfel');
+      });
     });
   });
 });
