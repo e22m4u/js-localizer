@@ -88,7 +88,7 @@ localizer.setDictionary('ru', {
 });
 
 localizer.t('group.title'); // Заголовок
-localizer.t('group.validation.required'); // Поле обязательно
+localizer.t('group.validation.required'); // Обязательное поле
 ```
 
 При поиске перевода приоритет отдается плоским ключам. Если в словаре
