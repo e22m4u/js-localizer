@@ -31,9 +31,9 @@ export type LocalizerEntry = string | DeclensionObject;
  * Declension object.
  */
 export type DeclensionObject = {
-  one?: string;
-  few?: string;
-  many?: string;
+  $one?: string;
+  $few?: string;
+  $many?: string;
 };
 
 /**
@@ -147,9 +147,9 @@ export declare class Localizer {
    *   'hello': 'Привет',
    *   'helloName': 'Привет, %s!',
    *   'iHaveApples': {
-   *     one: 'У меня одно яблоко',
-   *     few: 'У меня %d яблока',
-   *     many: 'У меня %d яблок',
+   *     $one: 'У меня одно яблоко',
+   *     $few: 'У меня %d яблока',
+   *     $many: 'У меня %d яблок',
    *   },
    * });
    * ```
@@ -171,9 +171,9 @@ export declare class Localizer {
    *       'hello': 'Привет',
    *       'helloName': 'Привет, %s!',
    *       'iHaveApples': {
-   *         one: 'У меня одно яблоко',
-   *         few: 'У меня %d яблока',
-   *         many: 'У меня %d яблок',
+   *         $one: 'У меня одно яблоко',
+   *         $few: 'У меня %d яблока',
+   *         $many: 'У меня %d яблок',
    *       },
    *     },
    *   },
@@ -221,13 +221,13 @@ export declare class Localizer {
    * // склонение
    * const res3 = localizer.o({
    *   ru: {
-   *     one: 'У меня одно яблоко',
-   *     few: 'У меня %d яблока',
-   *     many: 'У меня %d яблок',
+   *     $one: 'У меня одно яблоко',
+   *     $few: 'У меня %d яблока',
+   *     $many: 'У меня %d яблок',
    *   },
    *   en: {
-   *     one: 'I have an apple',
-   *     many: 'I have %d apples',
+   *     $one: 'I have an apple',
+   *     $many: 'I have %d apples',
    *   },
    * }, 10);
    * console.log(res3); // "У меня 10 яблок"

@@ -239,9 +239,9 @@ export class Localizer {
    *   'hello': 'Привет',
    *   'helloName': 'Привет, %s!',
    *   'iHaveApples': {
-   *     one: 'У меня одно яблоко',
-   *     few: 'У меня %d яблока',
-   *     many: 'У меня %d яблок',
+   *     $one: 'У меня одно яблоко',
+   *     $few: 'У меня %d яблока',
+   *     $many: 'У меня %d яблок',
    *   },
    * });
    * ```
@@ -283,9 +283,9 @@ export class Localizer {
    *       'hello': 'Привет',
    *       'helloName': 'Привет, %s!',
    *       'iHaveApples': {
-   *         one: 'У меня одно яблоко',
-   *         few: 'У меня %d яблока',
-   *         many: 'У меня %d яблок',
+   *         $one: 'У меня одно яблоко',
+   *         $few: 'У меня %d яблока',
+   *         $many: 'У меня %d яблок',
    *       },
    *     },
    *   },
@@ -410,13 +410,13 @@ export class Localizer {
    * // склонение
    * const res3 = localizer.o({
    *   ru: {
-   *     one: 'У меня одно яблоко',
-   *     few: 'У меня %d яблока',
-   *     many: 'У меня %d яблок',
+   *     $one: 'У меня одно яблоко',
+   *     $few: 'У меня %d яблока',
+   *     $many: 'У меня %d яблок',
    *   },
    *   en: {
-   *     one: 'I have an apple',
-   *     many: 'I have %d apples',
+   *     $one: 'I have an apple',
+   *     $many: 'I have %d apples',
    *   },
    * }, 10);
    * console.log(res3); // "У меня 10 яблок"
@@ -514,16 +514,16 @@ export class Localizer {
    */
   _getDeclension(declObj, args) {
     let fallback;
-    if (declObj.one != undefined) {
-      fallback = declObj.one;
-    } else if (declObj.few != undefined) {
-      fallback = declObj.few;
-    } else if (declObj.many != undefined) {
-      fallback = declObj.many;
+    if (declObj.$one != undefined) {
+      fallback = declObj.$one;
+    } else if (declObj.$few != undefined) {
+      fallback = declObj.$few;
+    } else if (declObj.$many != undefined) {
+      fallback = declObj.$many;
     }
     const numArg = args.find(v => typeof v === 'number');
     if (typeof numArg === 'number') {
-      let entry = numWords(numArg, declObj.one, declObj.few, declObj.many);
+      let entry = numWords(numArg, declObj.$one, declObj.$few, declObj.$many);
       if (entry == null) {
         entry = fallback;
       }

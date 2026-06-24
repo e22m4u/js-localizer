@@ -357,8 +357,8 @@ describe('Localizer', function () {
         dictionaries: {
           en: {
             iHaveApples: {
-              one: 'I have %d apple',
-              many: 'I have %d apples',
+              $one: 'I have %d apple',
+              $many: 'I have %d apples',
             },
           },
         },
@@ -374,9 +374,9 @@ describe('Localizer', function () {
         dictionaries: {
           ru: {
             iHaveApples: {
-              one: 'У меня %d яблоко',
-              few: 'У меня %d яблока',
-              many: 'У меня %d яблок',
+              $one: 'У меня %d яблоко',
+              $few: 'У меня %d яблока',
+              $many: 'У меня %d яблок',
             },
           },
         },
@@ -418,8 +418,8 @@ describe('Localizer', function () {
             en: {
               group: {
                 items: {
-                  one: '1 item',
-                  many: '%d items',
+                  $one: '1 item',
+                  $many: '%d items',
                 },
               },
             },
@@ -515,9 +515,9 @@ describe('Localizer', function () {
           fallbackLocale: 'en',
           noEmptyString: true,
           dictionaries: {
-            ru: {iHaveApples: {many: 'У меня %d яблок'}},
-            de: {iHaveApples: {many: 'Ich habe %d Äpfel'}},
-            en: {iHaveApples: {many: 'I have %d apples'}},
+            ru: {iHaveApples: {$many: 'У меня %d яблок'}},
+            de: {iHaveApples: {$many: 'Ich habe %d Äpfel'}},
+            en: {iHaveApples: {$many: 'I have %d apples'}},
           },
         });
         expect(S.t('iHaveApples', 5)).to.be.eq('У меня 5 яблок');
@@ -529,9 +529,9 @@ describe('Localizer', function () {
           fallbackLocale: 'en',
           noEmptyString: true,
           dictionaries: {
-            ru: {iHaveApples: {many: ''}},
-            de: {iHaveApples: {many: 'Ich habe %d Äpfel'}},
-            en: {iHaveApples: {many: 'I have %d apples'}},
+            ru: {iHaveApples: {$many: ''}},
+            de: {iHaveApples: {$many: 'Ich habe %d Äpfel'}},
+            en: {iHaveApples: {$many: 'I have %d apples'}},
           },
         });
         expect(S.t('iHaveApples', 5)).to.be.eq('I have 5 apples');
@@ -543,9 +543,9 @@ describe('Localizer', function () {
           fallbackLocale: 'en',
           noEmptyString: true,
           dictionaries: {
-            ru: {iHaveApples: {many: ''}},
-            de: {iHaveApples: {many: 'Ich habe %d Äpfel'}},
-            en: {iHaveApples: {many: ''}},
+            ru: {iHaveApples: {$many: ''}},
+            de: {iHaveApples: {$many: 'Ich habe %d Äpfel'}},
+            en: {iHaveApples: {$many: ''}},
           },
         });
         expect(S.t('iHaveApples', 5)).to.be.eq('Ich habe 5 Äpfel');
@@ -608,8 +608,8 @@ describe('Localizer', function () {
         S.o(
           {
             en: {
-              one: 'I have %d apple',
-              many: 'I have %d apples',
+              $one: 'I have %d apple',
+              $many: 'I have %d apples',
             },
           },
           d,
@@ -625,9 +625,9 @@ describe('Localizer', function () {
         S.o(
           {
             ru: {
-              one: 'У меня %d яблоко',
-              few: 'У меня %d яблока',
-              many: 'У меня %d яблок',
+              $one: 'У меня %d яблоко',
+              $few: 'У меня %d яблока',
+              $many: 'У меня %d яблок',
             },
           },
           d,
@@ -681,9 +681,9 @@ describe('Localizer', function () {
         });
         const res = S.o(
           {
-            ru: {many: 'У меня %d яблок'},
-            de: {many: 'Ich habe %d Äpfel'},
-            en: {many: 'I have %d apples'},
+            ru: {$many: 'У меня %d яблок'},
+            de: {$many: 'Ich habe %d Äpfel'},
+            en: {$many: 'I have %d apples'},
           },
           5,
         );
@@ -698,9 +698,9 @@ describe('Localizer', function () {
         });
         const res = S.o(
           {
-            ru: {many: ''},
-            de: {many: 'Ich habe %d Äpfel'},
-            en: {many: 'I have %d apples'},
+            ru: {$many: ''},
+            de: {$many: 'Ich habe %d Äpfel'},
+            en: {$many: 'I have %d apples'},
           },
           5,
         );
@@ -715,9 +715,9 @@ describe('Localizer', function () {
         });
         const res = S.o(
           {
-            ru: {many: ''},
-            de: {many: 'Ich habe %d Äpfel'},
-            en: {many: ''},
+            ru: {$many: ''},
+            de: {$many: 'Ich habe %d Äpfel'},
+            en: {$many: ''},
           },
           5,
         );
@@ -735,20 +735,22 @@ describe('Localizer', function () {
 
     it('should return the fallback if no numeric argument is provided', function () {
       const S = new Localizer();
-      const declObj = {one: 'one', few: 'few', many: 'many'};
-      expect(S._getDeclension(declObj, [])).to.be.eq('one');
-      expect(S._getDeclension(declObj, ['string', true])).to.be.eq('one');
+      const declObj = {$one: 'яблоко', $few: 'яблока', $many: 'яблок'};
+      expect(S._getDeclension(declObj, [])).to.be.eq('яблоко');
+      expect(S._getDeclension(declObj, ['string', true])).to.be.eq('яблоко');
     });
 
     it('should determine the fallback based on the first available key', function () {
       const S = new Localizer();
-      expect(S._getDeclension({few: 'few', many: 'many'}, [])).to.be.eq('few');
-      expect(S._getDeclension({many: 'many'}, [])).to.be.eq('many');
+      const declObj1 = {$few: 'яблока', $many: 'яблок'};
+      const declObj2 = {$many: 'яблок'};
+      expect(S._getDeclension(declObj1, [])).to.be.eq('яблока');
+      expect(S._getDeclension(declObj2, [])).to.be.eq('яблок');
     });
 
     it('should select correct forms using Russian rules (3 forms)', function () {
       const S = new Localizer();
-      const declObj = {one: 'яблоко', few: 'яблока', many: 'яблок'};
+      const declObj = {$one: 'яблоко', $few: 'яблока', $many: 'яблок'};
       expect(S._getDeclension(declObj, [1])).to.be.eq('яблоко');
       expect(S._getDeclension(declObj, [3])).to.be.eq('яблока');
       expect(S._getDeclension(declObj, [5])).to.be.eq('яблок');
@@ -756,7 +758,7 @@ describe('Localizer', function () {
 
     it('should select correct forms using English rules (2 forms)', function () {
       const S = new Localizer();
-      const declObj = {one: 'apple', many: 'apples'};
+      const declObj = {$one: 'apple', $many: 'apples'};
       expect(S._getDeclension(declObj, [1])).to.be.eq('apple');
       expect(S._getDeclension(declObj, [5])).to.be.eq('apples');
       expect(S._getDeclension(declObj, [0])).to.be.eq('apples');
@@ -764,10 +766,10 @@ describe('Localizer', function () {
 
     it('should return the fallback if the resolved form is undefined in the object', function () {
       const S = new Localizer();
-      // если определено только many, а передана единица (1):
-      // numWords вернет undefined (так как 'one' не задано),
+      // если определено только $many, а передана единица (1):
+      // numWords вернет undefined (так как $one не задано),
       // после чего метод должен использовать фоллбэк ('apples').
-      const declObj = {many: 'apples'};
+      const declObj = {$many: 'apples'};
       expect(S._getDeclension(declObj, [1])).to.be.eq('apples');
     });
   });
