@@ -315,23 +315,28 @@ export class Localizer {
         key,
       );
     }
-    // распаковывает объект склонений
-    // или возвращает как есть
+    // подготовка функции для распаковки объекта
+    // склонений или возврата значения без изменений
     const resolveValue = val => {
       if (val !== null && typeof val === 'object' && !Array.isArray(val)) {
         return this._getDeclension(val, args);
       }
       return val;
     };
-    // вспомогательная функция проверяет,
-    // подходит ли итоговое значение
+    // подготовка вспомогательной функции
+    // для проверки итогового значения
     const isValid = val =>
       val != null && !(this._noEmptyString && String(val).trim() === '');
     let entry;
     // проверка наличия перевода или объекта
     // склонений в текущей локали
     if (this._locale && this._dictionaries[this._locale]) {
-      entry = resolveValue(this._dictionaries[this._locale][key]);
+      entry = resolveValue(
+        // справочники могут содержать переводы во вложенных объектах,
+        // и перед определением склонения (если оно есть) требуется
+        // извлечь значение через dot-нотацию
+        this._getByPath(this._dictionaries[this._locale], key),
+      );
     }
     // проверка наличия перевода или объекта
     // склонений в fallback локали
@@ -340,7 +345,12 @@ export class Localizer {
       this._fallbackLocale &&
       this._dictionaries[this._fallbackLocale]
     ) {
-      entry = resolveValue(this._dictionaries[this._fallbackLocale][key]);
+      entry = resolveValue(
+        // справочники могут содержать переводы во вложенных объектах,
+        // и перед определением склонения (если оно есть) требуется
+        // извлечь значение через dot-нотацию
+        this._getByPath(this._dictionaries[this._fallbackLocale], key),
+      );
     }
     // проверка наличия перевода или объекта
     // склонений в оставшихся локалях
@@ -351,7 +361,12 @@ export class Localizer {
         if (locale === this._locale || locale === this._fallbackLocale) {
           continue;
         }
-        const tempEntry = resolveValue(this._dictionaries[locale][key]);
+        const tempEntry = resolveValue(
+          // справочники могут содержать переводы во вложенных объектах,
+          // и перед определением склонения (если оно есть) требуется
+          // извлечь значение через dot-нотацию
+          this._getByPath(this._dictionaries[locale], key),
+        );
         if (isValid(tempEntry)) {
           entry = tempEntry;
           break;
@@ -515,5 +530,38 @@ export class Localizer {
       return entry;
     }
     return fallback;
+  }
+
+  /**
+   * Получить значение из объекта по пути
+   * (с поддержкой точечной нотации).
+   *
+   * @param {object} obj
+   * @param {string} path
+   * @returns {*}
+   */
+  _getByPath(obj, path) {
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
+      return;
+    }
+    // прямое совпадение (если ключ реально
+    // содержит точку: {"my.key": "val"})
+    if (Object.hasOwn(obj, path)) {
+      return obj[path];
+    }
+    // обход по точечной нотации
+    const parts = path.split('.');
+    let current = obj;
+    for (let i = 0; i < parts.length; i++) {
+      if (
+        current === null ||
+        typeof current !== 'object' ||
+        Array.isArray(current)
+      ) {
+        return;
+      }
+      current = current[parts[i]];
+    }
+    return current;
   }
 }

@@ -394,6 +394,78 @@ describe('Localizer', function () {
       expect(S.t('I have %d apples', 5)).to.be.eq('I have 5 apples');
     });
 
+    describe('support nested dictionaries using dot-notation', function () {
+      it('should support nested dictionaries using dot-notation for simple strings', function () {
+        const S = new Localizer({
+          locale: 'en',
+          dictionaries: {
+            en: {
+              group: {
+                title: 'Title',
+                description: 'Description',
+              },
+            },
+          },
+        });
+        expect(S.t('group.title')).to.be.eq('Title');
+        expect(S.t('group.description')).to.be.eq('Description');
+      });
+
+      it('should support nested dictionaries containing declension objects', function () {
+        const S = new Localizer({
+          locale: 'en',
+          dictionaries: {
+            en: {
+              group: {
+                items: {
+                  one: '1 item',
+                  many: '%d items',
+                },
+              },
+            },
+          },
+        });
+        expect(S.t('group.items', 1)).to.be.eq('1 item');
+        expect(S.t('group.items', 5)).to.be.eq('5 items');
+      });
+
+      it('should return the key if pointing to a nested dictionary (not a declension)', function () {
+        const S = new Localizer({
+          locale: 'en',
+          dictionaries: {
+            en: {
+              group: {
+                title: 'Title',
+              },
+            },
+          },
+        });
+        expect(S.t('group')).to.be.eq('group');
+      });
+
+      it('should fallback correctly with nested keys', function () {
+        const S = new Localizer({
+          locale: 'ru',
+          fallbackLocale: 'en',
+          dictionaries: {
+            ru: {
+              group: {
+                foo: 'Фу',
+              },
+            },
+            en: {
+              group: {
+                foo: 'Foo',
+                bar: 'Bar',
+              },
+            },
+          },
+        });
+        expect(S.t('group.foo')).to.be.eq('Фу');
+        expect(S.t('group.bar')).to.be.eq('Bar');
+      });
+    });
+
     describe('when the option "noEmptyString" is true', function () {
       it('should use a current locale when a translation is a non-empty string', function () {
         const S = new Localizer({
@@ -651,6 +723,94 @@ describe('Localizer', function () {
         );
         expect(res).to.be.eq('Ich habe 5 Äpfel');
       });
+    });
+  });
+
+  describe('_getDeclension', function () {
+    it('should return undefined if the object contains no declension fields', function () {
+      const S = new Localizer();
+      expect(S._getDeclension({}, [5])).to.be.undefined;
+      expect(S._getDeclension({foo: 'bar'}, [5])).to.be.undefined;
+    });
+
+    it('should return the fallback if no numeric argument is provided', function () {
+      const S = new Localizer();
+      const declObj = {one: 'one', few: 'few', many: 'many'};
+      expect(S._getDeclension(declObj, [])).to.be.eq('one');
+      expect(S._getDeclension(declObj, ['string', true])).to.be.eq('one');
+    });
+
+    it('should determine the fallback based on the first available key', function () {
+      const S = new Localizer();
+      expect(S._getDeclension({few: 'few', many: 'many'}, [])).to.be.eq('few');
+      expect(S._getDeclension({many: 'many'}, [])).to.be.eq('many');
+    });
+
+    it('should select correct forms using Russian rules (3 forms)', function () {
+      const S = new Localizer();
+      const declObj = {one: 'яблоко', few: 'яблока', many: 'яблок'};
+      expect(S._getDeclension(declObj, [1])).to.be.eq('яблоко');
+      expect(S._getDeclension(declObj, [3])).to.be.eq('яблока');
+      expect(S._getDeclension(declObj, [5])).to.be.eq('яблок');
+    });
+
+    it('should select correct forms using English rules (2 forms)', function () {
+      const S = new Localizer();
+      const declObj = {one: 'apple', many: 'apples'};
+      expect(S._getDeclension(declObj, [1])).to.be.eq('apple');
+      expect(S._getDeclension(declObj, [5])).to.be.eq('apples');
+      expect(S._getDeclension(declObj, [0])).to.be.eq('apples');
+    });
+
+    it('should return the fallback if the resolved form is undefined in the object', function () {
+      const S = new Localizer();
+      // если определено только many, а передана единица (1):
+      // numWords вернет undefined (так как 'one' не задано),
+      // после чего метод должен использовать фоллбэк ('apples').
+      const declObj = {many: 'apples'};
+      expect(S._getDeclension(declObj, [1])).to.be.eq('apples');
+    });
+  });
+
+  describe('_getByPath', function () {
+    it('should return undefined if the object is invalid', function () {
+      const S = new Localizer();
+      expect(S._getByPath('str', 'path')).to.be.undefined;
+      expect(S._getByPath(10, 'path')).to.be.undefined;
+      expect(S._getByPath([], 'path')).to.be.undefined;
+      expect(S._getByPath(undefined, 'path')).to.be.undefined;
+      expect(S._getByPath(null, 'path')).to.be.undefined;
+    });
+
+    it('should return the exact match if a key contains dots', function () {
+      const S = new Localizer();
+      const obj = {'foo.bar': 'exact', foo: {bar: 'nested'}};
+      expect(S._getByPath(obj, 'foo.bar')).to.be.eq('exact');
+    });
+
+    it('should resolve nested paths using dot-notation', function () {
+      const S = new Localizer();
+      const obj = {a: {b: {c: 'target'}}};
+      expect(S._getByPath(obj, 'a.b.c')).to.be.eq('target');
+    });
+
+    it('should return undefined if a path element is missing', function () {
+      const S = new Localizer();
+      const obj = {a: {b: {}}};
+      expect(S._getByPath(obj, 'a.b.c')).to.be.undefined;
+      expect(S._getByPath(obj, 'x.y.z')).to.be.undefined;
+    });
+
+    it('should return undefined if the path traverses a non-object value', function () {
+      const S = new Localizer();
+      const obj = {a: {b: 'not-an-object'}};
+      expect(S._getByPath(obj, 'a.b.c')).to.be.undefined;
+    });
+
+    it('should return undefined if the path traverses an array', function () {
+      const S = new Localizer();
+      const obj = {a: [{b: 'value'}]};
+      expect(S._getByPath(obj, 'a.0.b')).to.be.undefined;
     });
   });
 });

@@ -347,17 +347,32 @@ var Localizer = class {
     const isValid = /* @__PURE__ */ __name((val) => val != null && !(this._noEmptyString && String(val).trim() === ""), "isValid");
     let entry;
     if (this._locale && this._dictionaries[this._locale]) {
-      entry = resolveValue(this._dictionaries[this._locale][key]);
+      entry = resolveValue(
+        // справочники могут содержать переводы во вложенных объектах,
+        // и перед определением склонения (если оно есть) требуется
+        // извлечь значение через dot-нотацию
+        this._getByPath(this._dictionaries[this._locale], key)
+      );
     }
     if (!isValid(entry) && this._fallbackLocale && this._dictionaries[this._fallbackLocale]) {
-      entry = resolveValue(this._dictionaries[this._fallbackLocale][key]);
+      entry = resolveValue(
+        // справочники могут содержать переводы во вложенных объектах,
+        // и перед определением склонения (если оно есть) требуется
+        // извлечь значение через dot-нотацию
+        this._getByPath(this._dictionaries[this._fallbackLocale], key)
+      );
     }
     if (!isValid(entry)) {
       for (const locale in this._dictionaries) {
         if (locale === this._locale || locale === this._fallbackLocale) {
           continue;
         }
-        const tempEntry = resolveValue(this._dictionaries[locale][key]);
+        const tempEntry = resolveValue(
+          // справочники могут содержать переводы во вложенных объектах,
+          // и перед определением склонения (если оно есть) требуется
+          // извлечь значение через dot-нотацию
+          this._getByPath(this._dictionaries[locale], key)
+        );
         if (isValid(tempEntry)) {
           entry = tempEntry;
           break;
@@ -493,6 +508,31 @@ var Localizer = class {
       return entry;
     }
     return fallback;
+  }
+  /**
+   * Получить значение из объекта по пути
+   * (с поддержкой точечной нотации).
+   *
+   * @param {object} obj
+   * @param {string} path
+   * @returns {*}
+   */
+  _getByPath(obj, path) {
+    if (!obj || typeof obj !== "object" || Array.isArray(obj)) {
+      return;
+    }
+    if (Object.hasOwn(obj, path)) {
+      return obj[path];
+    }
+    const parts = path.split(".");
+    let current = obj;
+    for (let i = 0; i < parts.length; i++) {
+      if (current === null || typeof current !== "object" || Array.isArray(current)) {
+        return;
+      }
+      current = current[parts[i]];
+    }
+    return current;
   }
 };
 // Annotate the CommonJS export names for ESM import in node:

@@ -19,7 +19,7 @@ export type LocalizerDictionaries = {
  * Localizer dictionary.
  */
 export type LocalizerDictionary = {
-  [key: string]: LocalizerEntry | undefined;
+  [key: string]: LocalizerEntry | LocalizerDictionary | undefined;
 };
 
 /**
