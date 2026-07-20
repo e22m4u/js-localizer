@@ -11,10 +11,10 @@
     "localization",
     "internationalization"
   ],
-  "homepage": "https://gitverse.ru/e22m4u/js-localizer",
+  "homepage": "https://github.com/e22m4u/js-localizer",
   "repository": {
     "type": "git",
-    "url": "git+https://gitverse.ru/e22m4u/js-localizer.git"
+    "url": "git+https://github.com/e22m4u/js-localizer.git"
   },
   "type": "module",
   "types": "./src/index.d.ts",
