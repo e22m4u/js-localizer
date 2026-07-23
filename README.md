@@ -1,5 +1,8 @@
 ## @e22m4u/js-localizer
 
+![npm version](https://badge.fury.io/js/@e22m4u%2Fjs-localizer.svg)
+![license](https://img.shields.io/badge/license-mit-blue.svg)
+
 Легковесный сервис локализации для JavaScript.
 
 ## Содержание
