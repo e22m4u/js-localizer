@@ -65,6 +65,7 @@ console.log(localizer.t('hello'));             // > Bonjour!
 console.log(localizer.t('helloName', 'John')); // > Bonjour, John!
 
 // перевод по языковому объекту (без словарей)
+// (внимание, используется метод `o` вместо `t`)
 console.log(localizer.o({en: 'Hello', fr: 'Bonjour'})); // > Bonjour!
 
 // изменение текущей локали
