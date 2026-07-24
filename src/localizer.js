@@ -550,23 +550,11 @@ export class Localizer {
    * @returns {string|undefined}
    */
   _getDeclension(declObj, args, locale) {
-    // поиск числового аргумента
-    const numArg = args.find(v => {
-      if (typeof v === 'number') {
-        return Number.isFinite(v);
-      }
-      if (typeof v === 'string' && v.trim() !== '') {
-        const n = Number(v);
-        return !isNaN(n) && Number.isFinite(n);
-      }
-      return false;
-    });
-    // если значение найдено, то приводится к числу,
-    // иначе остается без изменений
-    const parsedNum = numArg !== undefined ? Number(numArg) : undefined;
+    // поиск первого числового аргумента (строки игнорируются)
+    const numArg = args.find(v => typeof v === 'number' && Number.isFinite(v));
     // если передано число, то точный тег определяет Intl
-    if (typeof parsedNum === 'number') {
-      const tag = this._getPluralRules(locale).select(parsedNum);
+    if (typeof numArg === 'number') {
+      const tag = this._getPluralRules(locale).select(numArg);
       // точное совпадение по стандарту
       if (declObj['$' + tag] !== undefined) {
         return declObj['$' + tag];

@@ -495,19 +495,9 @@ var Localizer = class {
    * @returns {string|undefined}
    */
   _getDeclension(declObj, args, locale) {
-    const numArg = args.find((v) => {
-      if (typeof v === "number") {
-        return Number.isFinite(v);
-      }
-      if (typeof v === "string" && v.trim() !== "") {
-        const n = Number(v);
-        return !isNaN(n) && Number.isFinite(n);
-      }
-      return false;
-    });
-    const parsedNum = numArg !== void 0 ? Number(numArg) : void 0;
-    if (typeof parsedNum === "number") {
-      const tag = this._getPluralRules(locale).select(parsedNum);
+    const numArg = args.find((v) => typeof v === "number" && Number.isFinite(v));
+    if (typeof numArg === "number") {
+      const tag = this._getPluralRules(locale).select(numArg);
       if (declObj["$" + tag] !== void 0) {
         return declObj["$" + tag];
       }

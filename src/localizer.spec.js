@@ -849,28 +849,24 @@ describe('Localizer', function () {
       expect(S._getDeclension(declObj, [0], 'en')).to.be.eq('apples');
     });
 
-    it('should correctly parse numeric strings as numbers for pluralization', function () {
+    it('should ignore string numbers and use the first actual number for pluralization', function () {
       const S = new Localizer();
       const declObj = {$one: 'apple', $other: 'apples'};
-      expect(S._getDeclension(declObj, ['1'], 'en')).to.be.eq('apple');
-      expect(S._getDeclension(declObj, ['5'], 'en')).to.be.eq('apples');
-      expect(S._getDeclension(declObj, ['1.5'], 'en')).to.be.eq('apples');
-      expect(S._getDeclension(declObj, ['not-a-number', '5'], 'en')).to.be.eq(
-        'apples',
-      );
+      expect(S._getDeclension(declObj, ['12', 5], 'en')).to.be.eq('apples');
+      expect(S._getDeclension(declObj, ['12', 1], 'en')).to.be.eq('apple');
       expect(S._getDeclension(declObj, ['not-a-number', 1], 'en')).to.be.eq(
         'apple',
       );
       expect(S._getDeclension(declObj, ['', '  ', 1], 'en')).to.be.eq('apple');
     });
 
-    it('should ignore NaN and Infinity-like values as plural arguments', function () {
+    it('should ignore NaN and Infinity values as plural arguments', function () {
       const S = new Localizer();
       const declObj = {$one: 'apple', $other: 'apples'};
       expect(S._getDeclension(declObj, [NaN], 'en')).to.be.eq('apples');
-      expect(S._getDeclension(declObj, ['Infinity'], 'en')).to.be.eq('apples');
+      expect(S._getDeclension(declObj, [Infinity], 'en')).to.be.eq('apples');
       expect(S._getDeclension(declObj, [NaN, 5], 'en')).to.be.eq('apples');
-      expect(S._getDeclension(declObj, [NaN, 1], 'en')).to.be.eq('apple');
+      expect(S._getDeclension(declObj, [Infinity, 1], 'en')).to.be.eq('apple');
     });
   });
 

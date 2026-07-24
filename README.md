@@ -11,6 +11,9 @@ Lightweight localization service for JavaScript.
 
 - [Installation](#installation)
 - [Usage](#usage)
+  * [Nested Dictionaries](#nested-dictionaries)
+  * [Pluralization](#pluralization)
+  * [Translation from a Language Object](#translation-from-a-language-object)
 - [Constructor Options](#constructor-options)
 - [Instance Methods](#instance-methods)
 - [Tests](#tests)
@@ -199,6 +202,30 @@ console.log(localizer.t('iHaveApples', 5));   // > 5 تفاحات
 console.log(localizer.t('iHaveApples', 15));  // > 15 تفاحة
 console.log(localizer.t('iHaveApples', 100)); // > 100 تفاحة
 ```
+
+**Trick with multiple arguments**
+
+If a translation uses multiple parameters (e.g., a string user ID and
+an amount), the library automatically searches for the first argument
+of type `number` to determine the correct plural form. String arguments
+(even if they consist entirely of digits) are safely ignored during
+the pluralization evaluation.
+
+```js
+// the string "1" is formatted as %s and ignored for pluralization,
+// the number 5 is formatted as %d and determines the plural form ($other)
+console.log(localizer.o({
+  en: {
+    $one: 'User %s has %d apple',
+    $other: 'User %s has %d apples'
+  }
+}, '1', 5)); 
+// > User 1 has 5 apples
+```
+
+This way, the number `1` is hidden from the pluralization logic because
+it is passed as a string. The localizer only responds to the first argument
+with a numeric data type, which in this case is the number `5`.
 
 ### Translation from a Language Object
 
