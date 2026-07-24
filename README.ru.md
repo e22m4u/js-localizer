@@ -1,0 +1,293 @@
+## @e22m4u/js-localizer
+
+![npm version](https://badge.fury.io/js/@e22m4u%2Fjs-localizer.svg)
+![license](https://img.shields.io/badge/license-mit-blue.svg)
+
+[English](./README.md) | Русский
+
+Легковесный сервис локализации для JavaScript.
+
+## Содержание
+
+- [Установка](#установка)
+- [Использование](#использование)
+- [Дополнительные утилиты](#дополнительные-утилиты)
+- [Настройки конструктора](#настройки-конструктора)
+- [Методы экземпляра](#методы-экземпляра)
+- [Тесты](#тесты)
+- [Лицензия](#лицензия)
+
+## Установка
+
+```bash
+npm install @e22m4u/js-localizer
+```
+
+Модуль поддерживает ESM и CommonJS стандарты.
+
+*ESM*
+
+```js
+import {Localizer} from '@e22m4u/js-localizer';
+```
+
+*CommonJS*
+
+```js
+const {Localizer} = require('@e22m4u/js-localizer');
+```
+
+## Использование
+
+Создание экземпляра с указанием словарей и выполнение перевода.
+
+```js
+import {Localizer} from '@e22m4u/js-localizer';
+
+// создание экземпляра с указанием словарей
+const localizer = new Localizer({
+  locale: 'fr',         // текущая локаль (опционально)
+  fallbackLocale: 'en', // резервная локаль (опционально, по умолчанию "en")
+  dictionaries: {       // словари переводов (опционально)
+    en: {
+      hello: 'Hello!',
+      helloName: 'Hello, %s!',
+    },
+    fr: {
+      hello: 'Bonjour!',
+      helloName: 'Bonjour, %s!',
+    },
+  },
+});
+
+// перевод по словарю используя ключ
+console.log(localizer.t('hello'));             // > Bonjour!
+console.log(localizer.t('helloName', 'John')); // > Bonjour, John!
+
+// перевод по языковому объекту (без словарей)
+console.log(localizer.o({en: 'Hello', fr: 'Bonjour'})); // > Bonjour!
+
+// изменение текущей локали
+localizer.setLocale('en');
+
+console.log(localizer.t('hello'));             // > Hello!
+console.log(localizer.t('helloName', 'John')); // > Hello, John!
+
+console.log(localizer.o({en: 'Hello', fr: 'Bonjour'})); // > Hello!
+```
+
+*i. Форматирование строк (`%s`, `%d` и др.) выполняется с помощью модуля
+[@e22m4u/js-format](https://www.npmjs.com/package/@e22m4u/js-format).*
+
+### Вложенные словари
+
+Сервис локализации поддерживает использование вложенных объектов в словарях.
+Доступ к вложенным значениям выполняется с помощью *dot*-нотации.
+
+Пример структуры словаря:
+
+```js
+// в данном примере используется метод `setDictionary`,
+// который устанавливает новый справочник
+// (или переопределяет существующий)
+localizer.setDictionary('en', {
+  group: {
+    title: 'The Title',
+    validation: {
+      required: 'Required field'
+    }
+  }
+});
+
+localizer.setLocale('en');
+
+console.log(localizer.t('group.title')); // The Title
+console.log(localizer.t('group.validation.required')); // Required field
+```
+
+При поиске перевода приоритет отдается плоским ключам. Если в словаре
+присутствует ключ с точкой в названии, то обход вложенных объектов
+для данного пути не производится.
+
+Пример приоритета ключей:
+
+```js
+localizer.setDictionary('en', {
+  'group.title': 'A flat key',
+  group: {
+    title: 'A nested key',
+  },
+});
+
+console.log(localizer.t('group.title')); // A flat key
+```
+
+### Склонения
+
+Для обработки форм множественного числа используется объект
+с ключами `$one`, `$few`, `$many`.
+
+**Пример для английского языка (2 формы)**
+
+Для языков с двумя формами множественного числа (например, английского)
+достаточно указать `$one` и `$many` (или `$few`). Библиотека автоматически
+использует вторую форму для всех чисел, кроме `1` и `-1`.
+
+```js
+localizer.setDictionary('en', {
+  iHaveApples: {
+    $one: 'I have an apple',
+    $many: 'I have %d apples',
+  },
+});
+
+localizer.setLocale('en');
+
+console.log(localizer.t('iHaveApples', 1));   // > I have an apple
+console.log(localizer.t('iHaveApples', 0));   // > I have 0 apples
+console.log(localizer.t('iHaveApples', 10));  // > I have 10 apples
+```
+
+**Пример для русского языка (3 формы)**
+
+Для языков с тремя формами множественного числа (например, русского) необходимо
+указать все три ключа (`$one`, `$few` и `$many`). Библиотека автоматически
+выбирает нужную форму в зависимости от числа.
+
+```js
+localizer.setDictionary('ru', {
+  iHaveApples: {
+    $one: 'У меня одно яблоко',
+    $few: 'У меня %d яблока', // для чисел 2, 3, 4 и дробных
+    $many: 'У меня %d яблок', // для 0, 5, 6...
+  },
+});
+
+localizer.setLocale('ru');
+
+console.log(localizer.t('iHaveApples', 1)); // > У меня одно яблоко
+console.log(localizer.t('iHaveApples', 3)); // > У меня 3 яблока
+console.log(localizer.t('iHaveApples', 5)); // > У меня 5 яблок
+```
+
+### Перевод по языковому объекту
+
+Метод `o()` удобен, когда переводы хранятся не в глобальных словарях,
+а непосредственно в коде (например, в UI-компоненте).
+
+```js
+const localizer = new Localizer({locale: 'en'});
+
+const title = {
+  en: 'Hello!',
+  ru: 'Привет!',
+};
+
+console.log(localizer.o(title)); // > Hello!
+
+// метод также поддерживает склонения
+const counter = {
+  en: {$one: '%d item', $many: '%d items'},
+  ru: {$one: '%d товар', $few: '%d товара', $many: '%d товаров'},
+};
+
+console.log(localizer.o(counter, 5)); // > 5 items
+
+// тот же пример для другой локали
+localizer.setLocale('ru');
+
+console.log(localizer.o(title));      // > Привет!
+console.log(localizer.o(counter, 5)); // > 5 товаров
+```
+
+Если перевод для текущей локали отсутствует, будет использована резервная
+локаль, а если и она недоступна, то будет возвращён перевод для первого
+найденного языка в объекте. Если подходящий перевод так и не будет найден
+(например, объект пуст), то метод вернёт пустую строку.
+
+## Дополнительные утилиты
+
+Библиотека также экспортирует некоторые полезные функции.
+
+### numWords
+
+Функция для выбора правильной формы слова в зависимости от числа.
+Она используется внутри `Localizer`, но может быть полезна и сама по себе.
+
+```js
+import {numWords} from '@e22m4u/js-localizer';
+
+// для английского языка (2 формы: one, few/many)
+numWords(1, 'item', 'items'); // > 'item'
+numWords(5, 'item', 'items'); // > 'items'
+numWords(0, 'item', 'items'); // > 'items'
+
+// для русского языка (3 формы: one, few, many)
+numWords(1, 'товар', 'товара', 'товаров');  // > 'товар'
+numWords(2, 'товар', 'товара', 'товаров');  // > 'товара'
+numWords(5, 'товар', 'товара', 'товаров');  // > 'товаров'
+```
+
+## Настройки конструктора
+
+Параметры передаются в конструктор `new Localizer(options)`.
+
+- `locale?: string`  
+  Текущая локаль. Используется как основная локаль для поиска соответствующего
+  словаря или перевода в языковом объекте.  
+  *По умолчанию:* `undefined`
+
+- `fallbackLocale?: string`  
+  Резервная локаль. Используется, если перевод для текущей локали не найден
+  или текущая локаль не определена.  
+  *По умолчанию:* `'en'`
+
+- `dictionaries?: LocalizerDictionaries`  
+  Объект со словарями, где ключ является локалью.  
+  *По умолчанию:* `{}`
+
+- `noEmptyString?: boolean`  
+  Запрещает использование пустых строк в качестве переводов. Если включено,
+  а перевод представляет собой пустую строку, локализатор проигнорирует её
+  и попытается найти перевод в резервной локали.  
+  *По умолчанию:* `false`
+
+## Методы экземпляра
+
+- `getLocale(): string`  
+  Возвращает текущую локаль. Если текущая локаль не установлена,
+  то возвращается резервная локаль.
+
+- `setLocale(locale: string): this`  
+  Устанавливает текущую локаль. Это значение будет иметь приоритет
+  над резервной локалью.
+
+- `getFallbackLocale(): string`  
+  Возвращает резервную (альтернативную) локаль. По умолчанию `"en"`.
+
+- `setFallbackLocale(locale: string): this`  
+  Устанавливает резервную локаль. Локаль будет использоваться для поиска
+  перевода, если текущая локаль не задана, либо если в словаре текущей
+  локали отсутствует нужный ключ.
+
+- `getAvailableLocales(): string[]`  
+  Возвращает локали имеющихся справочников.
+
+- `setDictionary(locale: string, dictionary: object): this`  
+  Устанавливает или заменяет словарь для указанной локали.
+
+- `t(key: string, ...args: unknown[]): string`  
+  Возвращает переведённую и отформатированную строку по ключу из словаря.
+
+- `o(obj: object, ...args: unknown[]): string`  
+  Извлекает и форматирует перевод из переданного объекта для текущей локали.
+
+## Тесты
+
+```bash
+npm test
+```
+
+## Лицензия
+
+MIT
