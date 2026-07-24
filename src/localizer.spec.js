@@ -863,6 +863,15 @@ describe('Localizer', function () {
       );
       expect(S._getDeclension(declObj, ['', '  ', 1], 'en')).to.be.eq('apple');
     });
+
+    it('should ignore NaN and Infinity-like values as plural arguments', function () {
+      const S = new Localizer();
+      const declObj = {$one: 'apple', $other: 'apples'};
+      expect(S._getDeclension(declObj, [NaN], 'en')).to.be.eq('apples');
+      expect(S._getDeclension(declObj, ['Infinity'], 'en')).to.be.eq('apples');
+      expect(S._getDeclension(declObj, [NaN, 5], 'en')).to.be.eq('apples');
+      expect(S._getDeclension(declObj, [NaN, 1], 'en')).to.be.eq('apple');
+    });
   });
 
   describe('_getByPath', function () {

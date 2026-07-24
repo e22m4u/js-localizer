@@ -553,10 +553,11 @@ export class Localizer {
     // поиск числового аргумента
     const numArg = args.find(v => {
       if (typeof v === 'number') {
-        return true;
+        return Number.isFinite(v);
       }
-      if (typeof v === 'string' && v.trim() !== '' && !isNaN(Number(v))) {
-        return true;
+      if (typeof v === 'string' && v.trim() !== '') {
+        const n = Number(v);
+        return !isNaN(n) && Number.isFinite(n);
       }
       return false;
     });
