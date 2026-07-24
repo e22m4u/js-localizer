@@ -598,24 +598,19 @@ export class Localizer {
     if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
       return;
     }
-    // прямое совпадение (если ключ реально
-    // содержит точку: {"my.key": "val"})
+    // прямое совпадение на текущем уровне
+    // (если ключ реально содержит точку: {"my.key": "val"})
     if (Object.hasOwn(obj, path)) {
       return obj[path];
     }
-    // обход по точечной нотации
-    const parts = path.split('.');
-    let current = obj;
-    for (let i = 0; i < parts.length; i++) {
-      if (
-        current === null ||
-        typeof current !== 'object' ||
-        Array.isArray(current)
-      ) {
-        return;
-      }
-      current = current[parts[i]];
+    // делим путь на первый сегмент и остаток,
+    // спускаемся на один уровень и повторяем проверку
+    const dotIndex = path.indexOf('.');
+    if (dotIndex === -1) {
+      return undefined;
     }
-    return current;
+    const firstKey = path.slice(0, dotIndex);
+    const restPath = path.slice(dotIndex + 1);
+    return this._getByPath(obj[firstKey], restPath);
   }
 }

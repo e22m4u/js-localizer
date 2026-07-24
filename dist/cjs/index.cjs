@@ -534,15 +534,13 @@ var Localizer = class {
     if (Object.hasOwn(obj, path)) {
       return obj[path];
     }
-    const parts = path.split(".");
-    let current = obj;
-    for (let i = 0; i < parts.length; i++) {
-      if (current === null || typeof current !== "object" || Array.isArray(current)) {
-        return;
-      }
-      current = current[parts[i]];
+    const dotIndex = path.indexOf(".");
+    if (dotIndex === -1) {
+      return void 0;
     }
-    return current;
+    const firstKey = path.slice(0, dotIndex);
+    const restPath = path.slice(dotIndex + 1);
+    return this._getByPath(obj[firstKey], restPath);
   }
 };
 // Annotate the CommonJS export names for ESM import in node:

@@ -905,5 +905,26 @@ describe('Localizer', function () {
       const obj = {a: [{b: 'value'}]};
       expect(S._getByPath(obj, 'a.0.b')).to.be.undefined;
     });
+
+    it('should resolve a flat key nested inside another object', function () {
+      const S = new Localizer();
+      const obj = {interface: {'form.requiredField': 'обязательное поле'}};
+      expect(S._getByPath(obj, 'interface.form.requiredField')).to.be.eq(
+        'обязательное поле',
+      );
+    });
+
+    it('should prioritize a flat key at any nesting level, not only root', function () {
+      const S = new Localizer();
+      const obj = {
+        interface: {
+          'form.requiredField': 'flat',
+          form: {requiredField: 'nested'},
+        },
+      };
+      expect(S._getByPath(obj, 'interface.form.requiredField')).to.be.eq(
+        'flat',
+      );
+    });
   });
 });
