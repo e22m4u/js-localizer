@@ -122,6 +122,46 @@ describe('Localizer', function () {
     });
   });
 
+  describe('_getPluralRules', function () {
+    it('should return an Intl.PluralRules instance for a valid locale', function () {
+      const S = new Localizer();
+      const rules = S._getPluralRules('ru');
+      expect(rules).to.be.instanceOf(Intl.PluralRules);
+      expect(rules.resolvedOptions().locale).to.be.eq('ru');
+    });
+
+    it('should use "en" as the default locale when called with undefined or empty string', function () {
+      const S = new Localizer();
+      const rules1 = S._getPluralRules(undefined);
+      expect(rules1.resolvedOptions().locale).to.be.eq('en');
+      const rules2 = S._getPluralRules('');
+      expect(rules2.resolvedOptions().locale).to.be.eq('en');
+    });
+
+    it('should cache and return the exact same instance for subsequent calls with the same locale', function () {
+      const S = new Localizer();
+      const rules1 = S._getPluralRules('ru');
+      const rules2 = S._getPluralRules('ru');
+      expect(rules1).to.be.eq(rules2);
+      expect(S['_pluralRulesCache'].get('ru')).to.be.eq(rules1);
+    });
+
+    it('should gracefully fallback to "en" when a syntactically invalid locale is provided', function () {
+      const S = new Localizer();
+      const rules = S._getPluralRules('invalid_locale');
+      expect(rules).to.be.instanceOf(Intl.PluralRules);
+      expect(rules.resolvedOptions().locale).to.be.eq('en');
+    });
+
+    it('should store the fallback "en" instance in the cache using the invalid locale as the key', function () {
+      const S = new Localizer();
+      const rules = S._getPluralRules('invalid_locale_123');
+      const cachedRules = S['_pluralRulesCache'].get('invalid_locale_123');
+      expect(rules).to.be.eq(cachedRules);
+      expect(cachedRules.resolvedOptions().locale).to.be.eq('en');
+    });
+  });
+
   describe('setLocale', function () {
     it('should require the parameter "locale" to be a non-empty String', function () {
       const throwable = v => () => {

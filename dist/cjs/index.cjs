@@ -131,7 +131,14 @@ var Localizer = class {
   _getPluralRules(locale) {
     const safeLocale = locale || "en";
     if (!this._pluralRulesCache.has(safeLocale)) {
-      this._pluralRulesCache.set(safeLocale, new Intl.PluralRules(safeLocale));
+      try {
+        this._pluralRulesCache.set(
+          safeLocale,
+          new Intl.PluralRules(safeLocale)
+        );
+      } catch {
+        this._pluralRulesCache.set(safeLocale, new Intl.PluralRules("en"));
+      }
     }
     return this._pluralRulesCache.get(safeLocale);
   }

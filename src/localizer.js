@@ -129,7 +129,15 @@ export class Localizer {
     // на всякий случай используется фолбек на "en"
     const safeLocale = locale || 'en';
     if (!this._pluralRulesCache.has(safeLocale)) {
-      this._pluralRulesCache.set(safeLocale, new Intl.PluralRules(safeLocale));
+      try {
+        this._pluralRulesCache.set(
+          safeLocale,
+          new Intl.PluralRules(safeLocale),
+        );
+      } catch {
+        // fallback, если передана некорректная локаль (например '123')
+        this._pluralRulesCache.set(safeLocale, new Intl.PluralRules('en'));
+      }
     }
     return this._pluralRulesCache.get(safeLocale);
   }
