@@ -1,4 +1,3 @@
-import {numWords} from './utils/index.js';
 import {format, InvalidArgumentError} from '@e22m4u/js-format';
 
 /**
@@ -32,6 +31,13 @@ export class Localizer {
    * @type {object}
    */
   _dictionaries = {};
+
+  /**
+   * Кэш инстансов Intl.PluralRules.
+   *
+   * @type {Map<string, Intl.PluralRules>}
+   */
+  _pluralRulesCache = new Map();
 
   /**
    * Constructor.
@@ -110,6 +116,22 @@ export class Localizer {
         this._noEmptyString = options.noEmptyString;
       }
     }
+  }
+
+  /**
+   * Получить или создать правило плюрализации для локали.
+   *
+   * @param {string} locale
+   * @returns {Intl.PluralRules}
+   */
+  _getPluralRules(locale) {
+    // в Intl.PluralRules нельзя передать пустую строку или undefined,
+    // на всякий случай используется фолбек на "en"
+    const safeLocale = locale || 'en';
+    if (!this._pluralRulesCache.has(safeLocale)) {
+      this._pluralRulesCache.set(safeLocale, new Intl.PluralRules(safeLocale));
+    }
+    return this._pluralRulesCache.get(safeLocale);
   }
 
   /**
@@ -317,9 +339,9 @@ export class Localizer {
     }
     // подготовка функции для распаковки объекта
     // склонений или возврата значения без изменений
-    const resolveValue = val => {
+    const resolveValue = (val, currentLocale) => {
       if (val !== null && typeof val === 'object' && !Array.isArray(val)) {
-        return this._getDeclension(val, args);
+        return this._getDeclension(val, args, currentLocale);
       }
       return val;
     };
@@ -336,6 +358,7 @@ export class Localizer {
         // и перед определением склонения (если оно есть) требуется
         // извлечь значение через dot-нотацию
         this._getByPath(this._dictionaries[this._locale], key),
+        this._locale,
       );
     }
     // проверка наличия перевода или объекта
@@ -350,6 +373,7 @@ export class Localizer {
         // и перед определением склонения (если оно есть) требуется
         // извлечь значение через dot-нотацию
         this._getByPath(this._dictionaries[this._fallbackLocale], key),
+        this._fallbackLocale,
       );
     }
     // проверка наличия перевода или объекта
@@ -366,6 +390,7 @@ export class Localizer {
           // и перед определением склонения (если оно есть) требуется
           // извлечь значение через dot-нотацию
           this._getByPath(this._dictionaries[locale], key),
+          locale,
         );
         if (isValid(tempEntry)) {
           entry = tempEntry;
@@ -439,9 +464,9 @@ export class Localizer {
     }
     // распаковывает объект склонений
     // или возвращает как есть
-    const resolveValue = val => {
+    const resolveValue = (val, currentLocale) => {
       if (val !== null && typeof val === 'object' && !Array.isArray(val)) {
-        return this._getDeclension(val, args);
+        return this._getDeclension(val, args, currentLocale);
       }
       return val;
     };
@@ -453,12 +478,15 @@ export class Localizer {
     // проверка наличия перевода или объекта
     // склонений в текущей локали
     if (this._locale) {
-      entry = resolveValue(langObject[this._locale]);
+      entry = resolveValue(langObject[this._locale], this._locale);
     }
     // проверка наличия перевода или объекта
     // склонений в fallback локали
     if (!isValid(entry) && this._fallbackLocale) {
-      entry = resolveValue(langObject[this._fallbackLocale]);
+      entry = resolveValue(
+        langObject[this._fallbackLocale],
+        this._fallbackLocale,
+      );
     }
     // проверка наличия перевода или объекта
     // склонений в оставшихся локалях
@@ -469,7 +497,7 @@ export class Localizer {
         if (locale === this._locale || locale === this._fallbackLocale) {
           continue;
         }
-        const tempEntry = resolveValue(langObject[locale]);
+        const tempEntry = resolveValue(langObject[locale], locale);
         if (isValid(tempEntry)) {
           entry = tempEntry;
           break;
@@ -508,28 +536,46 @@ export class Localizer {
    * Извлечь подходящее склонение из объекта склонений
    * согласно аргументам.
    *
-   * @param {object} declObj
-   * @param {*[]} args
+   * @param  {object} declObj
+   * @param  {*[]}    args
+   * @param  {string} locale
    * @returns {string|undefined}
    */
-  _getDeclension(declObj, args) {
-    let fallback;
-    if (declObj.$one != undefined) {
-      fallback = declObj.$one;
-    } else if (declObj.$few != undefined) {
-      fallback = declObj.$few;
-    } else if (declObj.$many != undefined) {
-      fallback = declObj.$many;
-    }
-    const numArg = args.find(v => typeof v === 'number');
-    if (typeof numArg === 'number') {
-      let entry = numWords(numArg, declObj.$one, declObj.$few, declObj.$many);
-      if (entry == null) {
-        entry = fallback;
+  _getDeclension(declObj, args, locale) {
+    // поиск числового аргумента
+    const numArg = args.find(v => {
+      if (typeof v === 'number') {
+        return true;
       }
-      return entry;
+      if (typeof v === 'string' && v.trim() !== '' && !isNaN(Number(v))) {
+        return true;
+      }
+      return false;
+    });
+    // если значение найдено, то приводится к числу,
+    // иначе остается без изменений
+    const parsedNum = numArg !== undefined ? Number(numArg) : undefined;
+    // если передано число, то точный тег определяет Intl
+    if (typeof parsedNum === 'number') {
+      const tag = this._getPluralRules(locale).select(parsedNum);
+      // точное совпадение по стандарту
+      if (declObj['$' + tag] !== undefined) {
+        return declObj['$' + tag];
+      }
     }
-    return fallback;
+    // фолбэк-цепочка срабатывает, если число не передано вообще,
+    // или Intl вернул тег, которого нет в словаре
+    // (например, вернул 'other' для дроби в RU, но указано только $many)
+    const fallbackChain = ['other', 'many', 'few', 'two', 'one', 'zero'];
+    for (const fbTag of fallbackChain) {
+      if (declObj['$' + fbTag] !== undefined) {
+        return declObj['$' + fbTag];
+      }
+    }
+    // если объект вообще не содержит нужных ключей,
+    // то возвращается undefined (тогда внешний метод
+    // сделает fallback на ключ или пустую строку)
+    return;
   }
 
   /**

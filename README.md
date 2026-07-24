@@ -11,7 +11,6 @@ Lightweight localization service for JavaScript.
 
 - [Installation](#installation)
 - [Usage](#usage)
-- [Additional Utilities](#additional-utilities)
 - [Constructor Options](#constructor-options)
 - [Instance Methods](#instance-methods)
 - [Tests](#tests)
@@ -84,9 +83,8 @@ module.*
 
 ### Nested Dictionaries
 
-The localization service supports the use of nested objects in
-dictionaries. Access to nested values is performed using *dot*
-notation.
+The localization service supports the use of nested objects in dictionaries.
+Access to nested values is performed using *dot* notation.
 
 Example dictionary structure:
 
@@ -127,21 +125,20 @@ console.log(localizer.t('group.title')); // A flat key
 
 ### Pluralization
 
-An object with the keys `$one`, `$few`, `$many` is used for
-handling plural forms.
+An object with special keys is used for plural forms handling. The list of keys
+depends on the selected locale.
 
 **Example for the English language (2 forms)**
 
-For languages with two plural forms (English, for example), it is
-sufficient to specify `$one` and `$many` (or `$few`). The library
-automatically uses the second form for all numbers except `1` and
-`-1`.
+For languages with two plural forms (e.g., English), it is sufficient to specify
+`$one` and `$other`. The library automatically uses the second form for all
+numbers except `1` and `-1`.
 
 ```js
 localizer.setDictionary('en', {
   iHaveApples: {
     $one: 'I have an apple',
-    $many: 'I have %d apples',
+    $other: 'I have %d apples',
   },
 });
 
@@ -154,16 +151,17 @@ console.log(localizer.t('iHaveApples', 10));  // > I have 10 apples
 
 **Example for the Russian language (3 forms)**
 
-For languages with three plural forms (Russian, for example), all
-three keys (`$one`, `$few` and `$many`) need to be specified. The
-library automatically selects the correct form based on the number.
+For languages with three plural forms (e.g., Russian), three keys (`$one`,
+`$few`, and `$many`) must be specified. The library automatically selects the
+required form depending on the number.
 
 ```js
 localizer.setDictionary('ru', {
   iHaveApples: {
     $one: 'У меня одно яблоко',
-    $few: 'У меня %d яблока', // for numbers 2, 3, 4, and fractional
-    $many: 'У меня %d яблок', // for 0, 5, 6...
+    $few: 'У меня %d яблока',  // for numbers 2, 3, 4
+    $many: 'У меня %d яблок',  // for 0, 5, 6...
+    $other: 'У меня %d яблока' // for fractional numbers (optional)
   },
 });
 
@@ -172,6 +170,34 @@ localizer.setLocale('ru');
 console.log(localizer.t('iHaveApples', 1)); // > У меня одно яблоко
 console.log(localizer.t('iHaveApples', 3)); // > У меня 3 яблока
 console.log(localizer.t('iHaveApples', 5)); // > У меня 5 яблок
+```
+
+**Example for the Arabic language (6 forms)**
+
+For languages with six plural forms (e.g., Arabic), a full set of keys is
+used (`$zero`, `$one`, `$two`, `$few`, `$many`, and `$other`). The suitable
+form is selected automatically depending on the passed number.
+
+```js
+localizer.setDictionary('ar', {
+  iHaveApples: {
+    $zero: '٠ تفاحة',    // for 0
+    $one: 'تفاحة واحدة', // for 1
+    $two: 'تفاحتان',     // for 2
+    $few: '%d تفاحات',   // for 3-10
+    $many: '%d تفاحة',   // for 11-99
+    $other: '%d تفاحة'   // for 100 and more, as well as for fractions
+  },
+});
+
+localizer.setLocale('ar');
+
+console.log(localizer.t('iHaveApples', 0));   // > ٠ تفاحة
+console.log(localizer.t('iHaveApples', 1));   // > تفاحة واحدة
+console.log(localizer.t('iHaveApples', 2));   // > تفاحتان
+console.log(localizer.t('iHaveApples', 5));   // > 5 تفاحات
+console.log(localizer.t('iHaveApples', 15));  // > 15 تفاحة
+console.log(localizer.t('iHaveApples', 100)); // > 100 تفاحة
 ```
 
 ### Translation from a Language Object
@@ -192,7 +218,7 @@ console.log(localizer.o(title)); // > Hello!
 
 // the method also supports pluralization
 const counter = {
-  en: {$one: '%d item', $many: '%d items'},
+  en: {$one: '%d item', $other: '%d items'},
   ru: {$one: '%d товар', $few: '%d товара', $many: '%d товаров'},
 };
 
@@ -210,30 +236,6 @@ locale is used; if it is also unavailable, the translation for the
 first language found in the object is returned. If no suitable
 translation is found at all (the object is empty, for example), the
 method returns an empty string.
-
-## Additional Utilities
-
-The library also exports several useful functions.
-
-### numWords
-
-A function for selecting the correct word form depending on a
-number. It is used internally by `Localizer`, but can also be
-useful on its own.
-
-```js
-import {numWords} from '@e22m4u/js-localizer';
-
-// for the English language (2 forms: one, few/many)
-numWords(1, 'item', 'items'); // > 'item'
-numWords(5, 'item', 'items'); // > 'items'
-numWords(0, 'item', 'items'); // > 'items'
-
-// for the Russian language (3 forms: one, few, many)
-numWords(1, 'товар', 'товара', 'товаров');  // > 'товар'
-numWords(2, 'товар', 'товара', 'товаров');  // > 'товара'
-numWords(5, 'товар', 'товара', 'товаров');  // > 'товаров'
-```
 
 ## Constructor Options
 

@@ -31,9 +31,12 @@ export type LocalizerEntry = string | DeclensionObject;
  * Declension object.
  */
 export type DeclensionObject = {
+  $zero?: string;
   $one?: string;
+  $two?: string;
   $few?: string;
   $many?: string;
+  $other?: string;
 };
 
 /**
@@ -128,12 +131,12 @@ export declare class Localizer {
    * ```js
    * const localizer = new Localizer({
    *   dictionaries: {
-   *     ru: {hello: 'Привет'},
    *     en: {hello: 'Hello'},
+   *     ru: {hello: 'Привет'},
    *   },
    * });
    * const locales = localizer.getAvailableLocales();
-   * console.log(locales); // ["ru", "en"]
+   * console.log(locales); // ["en", "ru"]
    * ```
    */
   getAvailableLocales(): string[];
@@ -227,7 +230,7 @@ export declare class Localizer {
    *   },
    *   en: {
    *     $one: 'I have an apple',
-   *     $many: 'I have %d apples',
+   *     $other: 'I have %d apples',
    *   },
    * }, 10);
    * console.log(res3); // "У меня 10 яблок"

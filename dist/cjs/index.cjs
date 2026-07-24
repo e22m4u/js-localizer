@@ -21,38 +21,9 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.js
 var index_exports = {};
 __export(index_exports, {
-  Localizer: () => Localizer,
-  numWords: () => numWords
+  Localizer: () => Localizer
 });
 module.exports = __toCommonJS(index_exports);
-
-// src/utils/num-words.js
-function numWords(value, one, few, many) {
-  if (few == null && many == null) {
-    return one;
-  }
-  if (few == null || many == null) {
-    const pluralForm = few || many;
-    return Math.abs(value) === 1 ? one : pluralForm;
-  }
-  if (!Number.isInteger(value)) {
-    return few;
-  }
-  const absValue = Math.abs(value);
-  const val100 = absValue % 100;
-  const val10 = val100 % 10;
-  if (val100 > 10 && val100 < 20) {
-    return many;
-  }
-  if (val10 > 1 && val10 < 5) {
-    return few;
-  }
-  if (val10 === 1) {
-    return one;
-  }
-  return many;
-}
-__name(numWords, "numWords");
 
 // src/localizer.js
 var import_js_format = require("@e22m4u/js-format");
@@ -84,6 +55,12 @@ var Localizer = class {
    * @type {object}
    */
   _dictionaries = {};
+  /**
+   * Кэш инстансов Intl.PluralRules.
+   *
+   * @type {Map<string, Intl.PluralRules>}
+   */
+  _pluralRulesCache = /* @__PURE__ */ new Map();
   /**
    * Constructor.
    *
@@ -144,6 +121,19 @@ var Localizer = class {
         this._noEmptyString = options.noEmptyString;
       }
     }
+  }
+  /**
+   * Получить или создать правило плюрализации для локали.
+   *
+   * @param {string} locale
+   * @returns {Intl.PluralRules}
+   */
+  _getPluralRules(locale) {
+    const safeLocale = locale || "en";
+    if (!this._pluralRulesCache.has(safeLocale)) {
+      this._pluralRulesCache.set(safeLocale, new Intl.PluralRules(safeLocale));
+    }
+    return this._pluralRulesCache.get(safeLocale);
   }
   /**
    * Установить текущую локаль.
@@ -338,9 +328,9 @@ var Localizer = class {
         key
       );
     }
-    const resolveValue = /* @__PURE__ */ __name((val) => {
+    const resolveValue = /* @__PURE__ */ __name((val, currentLocale) => {
       if (val !== null && typeof val === "object" && !Array.isArray(val)) {
-        return this._getDeclension(val, args);
+        return this._getDeclension(val, args, currentLocale);
       }
       return val;
     }, "resolveValue");
@@ -351,7 +341,8 @@ var Localizer = class {
         // справочники могут содержать переводы во вложенных объектах,
         // и перед определением склонения (если оно есть) требуется
         // извлечь значение через dot-нотацию
-        this._getByPath(this._dictionaries[this._locale], key)
+        this._getByPath(this._dictionaries[this._locale], key),
+        this._locale
       );
     }
     if (!isValid(entry) && this._fallbackLocale && this._dictionaries[this._fallbackLocale]) {
@@ -359,7 +350,8 @@ var Localizer = class {
         // справочники могут содержать переводы во вложенных объектах,
         // и перед определением склонения (если оно есть) требуется
         // извлечь значение через dot-нотацию
-        this._getByPath(this._dictionaries[this._fallbackLocale], key)
+        this._getByPath(this._dictionaries[this._fallbackLocale], key),
+        this._fallbackLocale
       );
     }
     if (!isValid(entry)) {
@@ -371,7 +363,8 @@ var Localizer = class {
           // справочники могут содержать переводы во вложенных объектах,
           // и перед определением склонения (если оно есть) требуется
           // извлечь значение через dot-нотацию
-          this._getByPath(this._dictionaries[locale], key)
+          this._getByPath(this._dictionaries[locale], key),
+          locale
         );
         if (isValid(tempEntry)) {
           entry = tempEntry;
@@ -434,26 +427,29 @@ var Localizer = class {
         langObject
       );
     }
-    const resolveValue = /* @__PURE__ */ __name((val) => {
+    const resolveValue = /* @__PURE__ */ __name((val, currentLocale) => {
       if (val !== null && typeof val === "object" && !Array.isArray(val)) {
-        return this._getDeclension(val, args);
+        return this._getDeclension(val, args, currentLocale);
       }
       return val;
     }, "resolveValue");
     const isValid = /* @__PURE__ */ __name((val) => val != null && !(this._noEmptyString && String(val).trim() === ""), "isValid");
     let entry;
     if (this._locale) {
-      entry = resolveValue(langObject[this._locale]);
+      entry = resolveValue(langObject[this._locale], this._locale);
     }
     if (!isValid(entry) && this._fallbackLocale) {
-      entry = resolveValue(langObject[this._fallbackLocale]);
+      entry = resolveValue(
+        langObject[this._fallbackLocale],
+        this._fallbackLocale
+      );
     }
     if (!isValid(entry)) {
       for (const locale in langObject) {
         if (locale === this._locale || locale === this._fallbackLocale) {
           continue;
         }
-        const tempEntry = resolveValue(langObject[locale]);
+        const tempEntry = resolveValue(langObject[locale], locale);
         if (isValid(tempEntry)) {
           entry = tempEntry;
           break;
@@ -486,28 +482,35 @@ var Localizer = class {
    * Извлечь подходящее склонение из объекта склонений
    * согласно аргументам.
    *
-   * @param {object} declObj
-   * @param {*[]} args
+   * @param  {object} declObj
+   * @param  {*[]}    args
+   * @param  {string} locale
    * @returns {string|undefined}
    */
-  _getDeclension(declObj, args) {
-    let fallback;
-    if (declObj.$one != void 0) {
-      fallback = declObj.$one;
-    } else if (declObj.$few != void 0) {
-      fallback = declObj.$few;
-    } else if (declObj.$many != void 0) {
-      fallback = declObj.$many;
-    }
-    const numArg = args.find((v) => typeof v === "number");
-    if (typeof numArg === "number") {
-      let entry = numWords(numArg, declObj.$one, declObj.$few, declObj.$many);
-      if (entry == null) {
-        entry = fallback;
+  _getDeclension(declObj, args, locale) {
+    const numArg = args.find((v) => {
+      if (typeof v === "number") {
+        return true;
       }
-      return entry;
+      if (typeof v === "string" && v.trim() !== "" && !isNaN(Number(v))) {
+        return true;
+      }
+      return false;
+    });
+    const parsedNum = numArg !== void 0 ? Number(numArg) : void 0;
+    if (typeof parsedNum === "number") {
+      const tag = this._getPluralRules(locale).select(parsedNum);
+      if (declObj["$" + tag] !== void 0) {
+        return declObj["$" + tag];
+      }
     }
-    return fallback;
+    const fallbackChain = ["other", "many", "few", "two", "one", "zero"];
+    for (const fbTag of fallbackChain) {
+      if (declObj["$" + fbTag] !== void 0) {
+        return declObj["$" + fbTag];
+      }
+    }
+    return;
   }
   /**
    * Получить значение из объекта по пути
@@ -537,6 +540,5 @@ var Localizer = class {
 };
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
-  Localizer,
-  numWords
+  Localizer
 });
