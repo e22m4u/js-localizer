@@ -203,7 +203,7 @@ console.log(localizer.t('iHaveApples', 15));  // > 15 تفاحة
 console.log(localizer.t('iHaveApples', 100)); // > 100 تفاحة
 ```
 
-**Trick with multiple arguments**
+#### Trick with multiple arguments
 
 If a translation uses multiple parameters (e.g., a string user ID and
 an amount), the library automatically searches for the first argument
