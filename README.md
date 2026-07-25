@@ -3,29 +3,27 @@
 ![npm version](https://badge.fury.io/js/@e22m4u%2Fjs-localizer.svg)
 ![license](https://img.shields.io/badge/license-mit-blue.svg)
 
-English | [Русский](./README.ru.md)
+Легковесный сервис локализации для JavaScript.
 
-Lightweight localization service for JavaScript.
+## Содержание
 
-## Table of Contents
+- [Установка](#установка)
+- [Использование](#использование)
+  * [Вложенные словари](#вложенные-словари)
+  * [Формы множественного числа](#формы-множественного-числа)
+  * [Перевод по языковому объекту](#перевод-по-языковому-объекту)
+- [Настройки конструктора](#настройки-конструктора)
+- [Методы экземпляра](#методы-экземпляра)
+- [Тесты](#тесты)
+- [Лицензия](#лицензия)
 
-- [Installation](#installation)
-- [Usage](#usage)
-  * [Nested Dictionaries](#nested-dictionaries)
-  * [Pluralization](#pluralization)
-  * [Translation from a Language Object](#translation-from-a-language-object)
-- [Constructor Options](#constructor-options)
-- [Instance Methods](#instance-methods)
-- [Tests](#tests)
-- [License](#license)
-
-## Installation
+## Установка
 
 ```bash
 npm install @e22m4u/js-localizer
 ```
 
-The module supports ESM and CommonJS standards.
+Модуль поддерживает ESM и CommonJS стандарты.
 
 *ESM*
 
@@ -39,103 +37,104 @@ import {Localizer} from '@e22m4u/js-localizer';
 const {Localizer} = require('@e22m4u/js-localizer');
 ```
 
-## Usage
+## Использование
 
-Creating an instance with specified dictionaries and performing
-translation.
+Создание экземпляра с указанием словарей и выполнение перевода.
 
 ```js
 import {Localizer} from '@e22m4u/js-localizer';
 
-// creating an instance with specified dictionaries
+// создание экземпляра с указанием словарей
 const localizer = new Localizer({
-  locale: 'fr',         // current locale (optional)
-  fallbackLocale: 'en', // fallback locale (optional, defaults to "en")
-  dictionaries: {       // translation dictionaries (optional)
+  locale: 'ru',         // текущая локаль (опционально, по умолчанию резервная)
+  fallbackLocale: 'en', // резервная локаль (опционально, по умолчанию "en")
+  dictionaries: {       // словари переводов (опционально)
     en: {
       hello: 'Hello!',
       helloName: 'Hello, %s!',
     },
-    fr: {
-      hello: 'Bonjour!',
-      helloName: 'Bonjour, %s!',
+    ru: {
+      hello: 'Привет!',
+      helloName: 'Привет, %s!',
     },
   },
 });
 
-// translation from dictionary using a key
-console.log(localizer.t('hello'));             // > Bonjour!
-console.log(localizer.t('helloName', 'John')); // > Bonjour, John!
+// перевод по словарю используя ключ
+console.log(localizer.t('hello'));             // > Привет!
+console.log(localizer.t('helloName', 'Олег')); // > Привет, Олег!
 
-// translation from a language object (without dictionaries)
-// (note, the `o` method is used instead of `t`)
-console.log(localizer.o({en: 'Hello', fr: 'Bonjour'})); // > Bonjour!
+// перевод по языковому объекту (без словарей)
+// (внимание, используется метод `o` вместо `t`)
+console.log(localizer.o({en: 'Hello!', ru: 'Привет!'})); // > Привет!
 
-// changing the current locale
+// изменение текущей локали
 localizer.setLocale('en');
 
 console.log(localizer.t('hello'));             // > Hello!
 console.log(localizer.t('helloName', 'John')); // > Hello, John!
 
-console.log(localizer.o({en: 'Hello', fr: 'Bonjour'})); // > Hello!
+console.log(localizer.o({en: 'Hello!', ru: 'Привет!'})); // > Hello!
 ```
 
-*i. String formatting (`%s`, `%d`, etc.) is performed by the
-[@e22m4u/js-format](https://www.npmjs.com/package/@e22m4u/js-format)
-module.*
+*i. Форматирование строк (`%s`, `%d` и др.) выполняется с помощью модуля
+[@e22m4u/js-format](https://www.npmjs.com/package/@e22m4u/js-format).*
 
-### Nested Dictionaries
+### Вложенные словари
 
-The localization service supports the use of nested objects in dictionaries.
-Access to nested values is performed using *dot* notation.
+Сервис локализации поддерживает использование вложенных объектов в словарях.
+Доступ к вложенным значениям выполняется с помощью *dot*-нотации.
 
-Example dictionary structure:
+Пример структуры словаря:
 
 ```js
-// this example uses the `setDictionary` method,
-// which sets a new dictionary (or overrides an existing one)
-localizer.setDictionary('en', {
+// в данном примере используется метод `setDictionary`,
+// который устанавливает новый справочник
+// (или переопределяет существующий)
+localizer.setDictionary('ru', {
   group: {
-    title: 'The Title',
+    title: 'Заголовок',
     validation: {
-      required: 'Required field'
+      required: 'Обязательное поле'
     }
   }
 });
 
-localizer.setLocale('en');
+localizer.setLocale('ru');
 
-console.log(localizer.t('group.title')); // The Title
-console.log(localizer.t('group.validation.required')); // Required field
+console.log(localizer.t('group.title')); // Заголовок
+console.log(localizer.t('group.validation.required')); // Обязательное поле
 ```
 
-During translation lookup, flat keys take priority. If a dictionary
-contains a key with a dot in its name, traversal of nested objects
-for that path is not performed.
+При поиске перевода приоритет отдается плоским ключам. Если в словаре
+присутствует ключ с точкой в названии, то обход вложенных объектов
+для данного пути не производится.
 
-Example of key priority:
+Пример приоритета ключей:
 
 ```js
-localizer.setDictionary('en', {
-  'group.title': 'A flat key',
+localizer.setDictionary('ru', {
+  'group.title': 'Плоский ключ',
   group: {
-    title: 'A nested key',
+    title: 'Вложенный ключ',
   },
 });
 
-console.log(localizer.t('group.title')); // A flat key
+console.log(localizer.t('group.title')); // Плоский ключ
 ```
 
-### Pluralization
+### Формы множественного числа
 
-An object with special keys is used for plural forms handling. The list of keys
-depends on the selected locale.
+Модуль использует встроенный нативный интерфейс `Intl.PluralRules`
+для определения правильной формы множественного числа. Склонения
+указываются в объекте со специальными ключами, список которых
+зависит от выбранной локали.
 
-**Example for the English language (2 forms)**
+**Пример для английского языка (2 формы)**
 
-For languages with two plural forms (e.g., English), it is sufficient to specify
-`$one` and `$other`. The library automatically uses the second form for all
-numbers except `1` and `-1`.
+Для языков с двумя формами множественного числа (например, английского)
+достаточно указать `$one` и `$other`. Библиотека автоматически
+использует вторую форму для всех чисел, кроме `1` и `-1`.
 
 ```js
 localizer.setDictionary('en', {
@@ -152,19 +151,19 @@ console.log(localizer.t('iHaveApples', 0));   // > I have 0 apples
 console.log(localizer.t('iHaveApples', 10));  // > I have 10 apples
 ```
 
-**Example for the Russian language (3 forms)**
+**Пример для русского языка (3 формы)**
 
-For languages with three plural forms (e.g., Russian), three keys (`$one`,
-`$few`, and `$many`) must be specified. The library automatically selects the
-required form depending on the number.
+Для языков с тремя формами множественного числа (например, русского) необходимо
+указать три ключа (`$one`, `$few` и `$many`). Библиотека автоматически выбирает
+нужную форму в зависимости от числа.
 
 ```js
 localizer.setDictionary('ru', {
   iHaveApples: {
     $one: 'У меня одно яблоко',
-    $few: 'У меня %d яблока',  // for numbers 2, 3, 4
-    $many: 'У меня %d яблок',  // for 0, 5, 6...
-    $other: 'У меня %d яблока' // for fractional numbers (optional)
+    $few: 'У меня %d яблока',  // для чисел 2, 3, 4 и т.п.
+    $many: 'У меня %d яблок',  // для 0, 5, 6...
+    $other: 'У меня %d яблока' // для дробных чисел (опционально)
   },
 });
 
@@ -175,21 +174,22 @@ console.log(localizer.t('iHaveApples', 3)); // > У меня 3 яблока
 console.log(localizer.t('iHaveApples', 5)); // > У меня 5 яблок
 ```
 
-**Example for the Arabic language (6 forms)**
+**Пример для арабского языка (6 форм)**
 
-For languages with six plural forms (e.g., Arabic), a full set of keys is
-used (`$zero`, `$one`, `$two`, `$few`, `$many`, and `$other`). The suitable
-form is selected automatically depending on the passed number.
+Для языков с шестью формами множественного числа (например, арабского)
+используется полный набор ключей (`$zero`, `$one`, `$two`, `$few`, `$many`
+и `$other`). Выбор подходящей формы осуществляется автоматически в зависимости
+от переданного числа.
 
 ```js
 localizer.setDictionary('ar', {
   iHaveApples: {
-    $zero: '٠ تفاحة',    // for 0
-    $one: 'تفاحة واحدة', // for 1
-    $two: 'تفاحتان',     // for 2
-    $few: '%d تفاحات',   // for 3-10
-    $many: '%d تفاحة',   // for 11-99
-    $other: '%d تفاحة'   // for 100 and more, as well as for fractions
+    $zero: '٠ تفاحة',    // для 0
+    $one: 'تفاحة واحدة', // для 1
+    $two: 'تفاحتان',     // для 2
+    $few: '%d تفاحات',   // для 3-10
+    $many: '%d تفاحة',   // для 11-99
+    $other: '%d تفاحة'   // для 100 и более, а также для дробей
   },
 });
 
@@ -203,129 +203,125 @@ console.log(localizer.t('iHaveApples', 15));  // > 15 تفاحة
 console.log(localizer.t('iHaveApples', 100)); // > 100 تفاحة
 ```
 
-#### Trick with multiple arguments
+#### Трюк с несколькими аргументами
 
-If a translation uses multiple parameters (e.g., a string user ID and
-an amount), the library automatically searches for the first argument
-of type `number` to determine the correct plural form. String arguments
-(even if they consist entirely of digits) are safely ignored during
-the pluralization evaluation.
+Если в строке перевода используется несколько параметров (например,
+ID пользователя в виде строки и количество), библиотека автоматически
+найдет первый аргумент типа `number` для определения нужной формы.
+Строковые аргументы (даже если они состоят только из цифр) безопасно
+игнорируются при выборе склонения.
 
 ```js
-// the string "1" is formatted as %s and ignored for pluralization,
-// the number 5 is formatted as %d and determines the plural form ($other)
+// строка "1" подставится вместо %s и проигнорируется при выборе склонения,
+// число 5 подставится вместо %d и определит форму множественного числа
 console.log(localizer.o({
   en: {
-    $one: 'User %s has %d apple',
+    $one: 'User %s has one apple',
     $other: 'User %s has %d apples'
   }
-}, '1', 5)); 
+}, '1', 5));
 // > User 1 has 5 apples
 ```
 
-This way, the number `1` is hidden from the pluralization logic because
-it is passed as a string. The localizer only responds to the first argument
-with a numeric data type, which in this case is the number `5`.
+Таким образом число `1` скрывается от логики определения числовой формы,
+так как передается в виде строки. Локализатор реагирует только на первый
+аргумент с числовым типом данных, которым в данном случае является число `5`.
 
-### Translation from a Language Object
+### Перевод по языковому объекту
 
-The `o()` method is convenient when translations are stored not in
-global dictionaries, but directly in the code (in a UI component,
-for example).
+Метод `o()` удобен, когда переводы хранятся не в глобальных словарях,
+а непосредственно в коде (например, в UI-компоненте).
 
 ```js
-const localizer = new Localizer({locale: 'en'});
+const localizer = new Localizer({locale: 'ru'});
 
 const title = {
   en: 'Hello!',
   ru: 'Привет!',
 };
 
-console.log(localizer.o(title)); // > Hello!
+console.log(localizer.o(title)); // > Привет!
 
-// the method also supports pluralization
+// метод также поддерживает склонения
 const counter = {
   en: {$one: '%d item', $other: '%d items'},
   ru: {$one: '%d товар', $few: '%d товара', $many: '%d товаров'},
 };
 
-console.log(localizer.o(counter, 5)); // > 5 items
-
-// the same example for a different locale
-localizer.setLocale('ru');
-
-console.log(localizer.o(title));      // > Привет!
 console.log(localizer.o(counter, 5)); // > 5 товаров
+
+// тот же пример для другой локали
+localizer.setLocale('en');
+
+console.log(localizer.o(title));      // > Hello!
+console.log(localizer.o(counter, 5)); // > 5 items
 ```
 
-If a translation for the current locale is missing, the fallback
-locale is used; if it is also unavailable, the translation for the
-first language found in the object is returned. If no suitable
-translation is found at all (the object is empty, for example), the
-method returns an empty string.
+Если перевод для текущей локали отсутствует, будет использована резервная
+локаль, а если и она недоступна, то будет возвращён перевод для первого
+найденного языка в объекте. Если подходящий перевод так и не будет найден
+(например, объект пуст), то метод вернёт пустую строку.
 
-## Constructor Options
+## Настройки конструктора
 
-Parameters are passed to the `new Localizer(options)` constructor.
+Параметры передаются в конструктор `new Localizer(options)`.
 
 - `locale?: string`  
-  Current locale. Used as the primary locale for looking up the
-  corresponding dictionary or translation in a language object.  
-  *Default:* `undefined`
+  Текущая локаль. Используется как основная локаль для поиска соответствующего
+  словаря или перевода в языковом объекте.  
+  *По умолчанию:* `undefined`
 
 - `fallbackLocale?: string`  
-  Fallback locale. Used if a translation for the current locale is
-  not found, or the current locale is not defined.  
-  *Default:* `'en'`
+  Резервная локаль. Используется, если перевод для текущей локали не найден
+  или текущая локаль не определена.  
+  *По умолчанию:* `'en'`
 
 - `dictionaries?: LocalizerDictionaries`  
-  An object with dictionaries, where the key is the locale.  
-  *Default:* `{}`
+  Объект со словарями, где ключ является локалью.  
+  *По умолчанию:* `{}`
 
 - `noEmptyString?: boolean`  
-  Disallows the use of empty strings as translations. If enabled,
-  and a translation is an empty string, the localizer ignores it
-  and attempts to find a translation in the fallback locale.  
-  *Default:* `false`
+  Запрещает использование пустых строк в качестве переводов. Если включено,
+  а перевод представляет собой пустую строку, локализатор проигнорирует её
+  и попытается найти перевод в резервной локали.  
+  *По умолчанию:* `false`
 
-## Instance Methods
+## Методы экземпляра
 
 - `getLocale(): string`  
-  Returns the current locale. If the current locale is not set,
-  the fallback locale is returned.
+  Возвращает текущую локаль. Если текущая локаль не установлена,
+  то возвращается резервная локаль.
 
 - `setLocale(locale: string): this`  
-  Sets the current locale. This value takes priority over the
-  fallback locale.
+  Устанавливает текущую локаль. Это значение будет иметь приоритет
+  над резервной локалью.
 
 - `getFallbackLocale(): string`  
-  Returns the fallback (alternative) locale. Defaults to `"en"`.
+  Возвращает резервную (альтернативную) локаль. По умолчанию `"en"`.
 
 - `setFallbackLocale(locale: string): this`  
-  Sets the fallback locale. This locale is used for translation
-  lookup if the current locale is not set, or if the required key
-  is missing from the current locale's dictionary.
+  Устанавливает резервную локаль. Локаль будет использоваться для поиска
+  перевода, если текущая локаль не задана, либо если в словаре текущей
+  локали отсутствует нужный ключ.
 
 - `getAvailableLocales(): string[]`  
-  Returns the locales of the available dictionaries.
+  Возвращает локали имеющихся справочников.
 
 - `setDictionary(locale: string, dictionary: object): this`  
-  Sets or replaces the dictionary for the specified locale.
+  Устанавливает или заменяет словарь для указанной локали.
 
 - `t(key: string, ...args: unknown[]): string`  
-  Returns the translated and formatted string for the specified
-  dictionary key.
+  Возвращает переведённую и отформатированную строку по ключу из словаря.
 
 - `o(obj: object, ...args: unknown[]): string`  
-  Extracts and formats a translation from the given object for the
-  current locale.
+  Извлекает и форматирует перевод из переданного объекта для текущей локали.
 
-## Tests
+## Тесты
 
 ```bash
 npm test
 ```
 
-## License
+## Лицензия
 
 MIT
